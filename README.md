@@ -4,6 +4,14 @@
 반영 중인 내재 성장률을 과거 FCF 성장(앵커)과 비교해 **저평가/고평가 후보를
 스크리닝**하는 단일 파일 도구입니다.
 
+## 🚀 바로 열기
+
+> **[▶ 스크리너 바로 열기](https://htmlpreview.github.io/?https://github.com/DANKIM82/reverse-dcf/blob/main/screener.html)**
+
+클릭 한 번으로 브라우저에서 바로 실행됩니다. 설치·서버 불필요.
+
+---
+
 - **`screener.html`** — 브라우저에서 바로 열리는 스크리너(계산·필터·태깅·CSV/워크스페이스 저장). 서버·빌드 불필요
 - **`pipeline.py`** — `universe.json` 데이터 생성기(데모 or pykrx+OpenDART 실데이터)
 - **`universe.json`** — 스크리너가 읽는 데이터 (스키마는 `pipeline.py` 상단 docstring 참고)
@@ -11,7 +19,7 @@
 ## 빠른 시작 (데모 데이터)
 
 ```bash
-python pipeline.py --demo -o universe.json   # 가상 수치로 즉시 체험
+python pipeline.py --demo -o universe.json # 가상 수치로 즉시 체험
 ```
 
 `screener.html`을 브라우저로 열면 됩니다. (같은 폴더의 `universe.json`을 자동 로드,
@@ -24,10 +32,10 @@ python pipeline.py --demo -o universe.json   # 가상 수치로 즉시 체험
 ```bash
 pip install -r requirements.txt
 
-# DART 인증키 발급: https://opendart.fss.or.kr  → 인증키 신청 (무료)
-export DART_API_KEY=발급키              # Windows PowerShell: $env:DART_API_KEY="발급키"
+# DART 인증키 발급: https://opendart.fss.or.kr → 인증키 신청 (무료)
+export DART_API_KEY=발급키 # Windows PowerShell: $env:DART_API_KEY="발급키"
 
-python pipeline.py --export-universe universe.csv          # 최초 1회: 종목목록 생성
+python pipeline.py --export-universe universe.csv # 최초 1회: 종목목록 생성
 python pipeline.py --fetch --universe universe.csv -o universe.json
 ```
 
@@ -37,7 +45,7 @@ python pipeline.py --fetch --universe universe.csv -o universe.json
 
 ### 데이터 로딩 방식
 
-- **HTTP 환경**(GitHub Pages, 로컬 서버): 페이지가 `./universe.json`을 자동 fetch
+- **HTTP 환경**(GitHub Pages, htmlpreview, 로컬 서버): 페이지가 `./universe.json`을 자동 fetch
 - **오프라인**(`file://` 더블클릭): fetch가 막히므로 HTML에 내장된 데이터로 폴백.
   최신 데이터를 오프라인에서 쓰려면 스크리너 상단 **"데이터 JSON 불러오기"** 버튼으로
   `universe.json`을 직접 로드하면 됩니다.
