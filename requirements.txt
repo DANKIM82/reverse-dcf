@@ -1,7 +1,6 @@
-# 항상 필요 (역DCF 계산 / demo 생성)
+# 항상 필요
 numpy
 
-# 실데이터 수집(--fetch) 시에만 필요
-pandas>=2.2,<3         # pykrx 호환 위해 3.x 회피
-pykrx
-opendartreader         # PyPI 정규화명 (소문자). Python>=3.10 지원
+# 실데이터 수집(--fetch) - GitHub Actions 해외 IP에서도 동작
+pandas>=2.2,<3
+FinanceDataReader      # 시총 + 재무 (KRX, 해외 IP 차단 없음)
