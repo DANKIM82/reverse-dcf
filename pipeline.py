@@ -19,7 +19,6 @@ SECTOR_WACC = {
 }
 DEFAULT_TERMINAL_G = 0.01
 
-# DEMO_UNIVERSE에 있는 EV/FCF hint (negative = 적자)
 EVFCF_HINT = {
     "005930": 18, "000660": 14, "042700": 38, "058470": 26, "403870": 30, "240810": 22,
     "011070": 9, "009150": 15, "007660": 34, "373220": -1, "006400": -1, "247540": -1,
@@ -66,24 +65,44 @@ def solve_implied_growth(ev, fcf0, wacc, tg, n=5, lo=-0.5, hi=1.0):
     return 0.5 * (lo + hi), "ok"
 
 
+def get_naver_mktcap(code, session):
+    """NAVER 금융에서 개별 종목 시가총액 조회"""
+    try:
+        url = "https://finance.naver.com/item/main.naver?code=" + code
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120",
+            "Referer": "https://finance.naver.com/",
+        }
+        r = session.get(url, headers=headers, timeout=10)
+        if r.status_code != 200:
+            return None
+        # 시가총액 파싱
+        import re
+        m = re.search(r"시가총액[^0-9]*([0-9,]+)억", r.text)
+        if m:
+            val = float(m.group(1).replace(",", ""))
+            return val
+        return None
+    except Exception:
+        return None
+
+
 def fetch_naver_json_financials(code, session):
-    """NAVER 금융 JSON API로 현금흐름 데이터 가져오기"""
+    """NAVER 금융 현금흐름표 파싱"""
     empty = {"fcf_ttm": None, "fcf_3y_avg": None, "revenue_ttm": None,
               "norm_fcf_margin": None, "fcf_cagr_5y": None, "net_debt": 0.0}
     try:
-        # NAVER 재무제표 - 현금흐름표 JSON API
+        import pandas as pd
+        from io import StringIO
         url = "https://finance.naver.com/item/coinfo.naver?code=" + code + "&target=cashflow"
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120",
             "Referer": "https://finance.naver.com/",
             "Accept-Language": "ko-KR,ko;q=0.9",
         }
         r = session.get(url, headers=headers, timeout=15)
         if r.status_code != 200:
             return empty
-
-        import pandas as pd
-        from io import StringIO
         tables = pd.read_html(StringIO(r.text), header=0)
         if not tables:
             return empty
@@ -93,17 +112,7 @@ def fetch_naver_json_financials(code, session):
 
         for tbl in tables:
             tbl.columns = [str(c).strip() for c in tbl.columns]
-            # 숫자 컬럼 추출 (연도별 데이터)
-            num_cols = []
-            for c in tbl.columns[1:]:
-                try:
-                    if str(c).replace("/", "").replace(".", "").isdigit() or "12" in str(c) or "연간" in str(c):
-                        num_cols.append(c)
-                except Exception:
-                    pass
-            if not num_cols:
-                num_cols = list(tbl.columns[1:min(6, len(tbl.columns))])
-
+            num_cols = list(tbl.columns[1:min(6, len(tbl.columns))])
             for idx, row in tbl.iterrows():
                 label = str(row.iloc[0]).replace(" ", "").lower() if len(row) > 0 else ""
                 vals = []
@@ -111,18 +120,16 @@ def fetch_naver_json_financials(code, session):
                     try:
                         v = str(row[c]).replace(",", "").strip()
                         if v not in ["nan", "-", "", "N/A"]:
-                            fv = float(v)
-                            vals.append(fv)
+                            vals.append(float(v))
                     except Exception:
                         pass
                 if not vals:
                     continue
-
-                if any(k in label for k in ["영업활동으로인한현금흐름", "영업활동현금흐름", "operatingcash"]):
+                if any(k in label for k in ["영업활동으로인한현금흐름", "영업활동현금흐름"]):
                     cfo_list = vals
                 elif any(k in label for k in ["유형자산의취득", "유형자산취득", "capex"]):
                     capex_list = vals
-                elif any(k in label for k in ["매출액", "순영업수익", "revenue"]):
+                elif any(k in label for k in ["매출액", "순영업수익"]):
                     if not rev_list:
                         rev_list = vals
                 elif "단기차입금" in label:
@@ -135,7 +142,6 @@ def fetch_naver_json_financials(code, session):
         if not cfo_list:
             return empty
 
-        # 억원 단위로 통일 (원 단위면 변환)
         def normalize(vals):
             if vals and abs(vals[0]) > 1e8:
                 return [v / 1e8 for v in vals]
@@ -173,12 +179,9 @@ def fetch_naver_json_financials(code, session):
 
         r2 = lambda x, d=1: None if x is None else round(float(x), d)
         return {
-            "fcf_ttm": r2(fcf_ttm),
-            "fcf_3y_avg": r2(fcf_3y),
-            "revenue_ttm": r2(rev_ttm),
-            "norm_fcf_margin": r2(margin, 4),
-            "fcf_cagr_5y": r2(cagr, 4),
-            "net_debt": r2(net_debt) or 0.0,
+            "fcf_ttm": r2(fcf_ttm), "fcf_3y_avg": r2(fcf_3y),
+            "revenue_ttm": r2(rev_ttm), "norm_fcf_margin": r2(margin, 4),
+            "fcf_cagr_5y": r2(cagr, 4), "net_debt": r2(net_debt) or 0.0,
         }
     except Exception as e:
         print("    naver_fin(" + code + "): " + str(e))
@@ -186,27 +189,12 @@ def fetch_naver_json_financials(code, session):
 
 
 def fetch_live(universe_csv):
-    """FinanceDataReader 시총 + NAVER 재무 수집"""
+    """NAVER 시총 + NAVER 재무 수집 (KRX IP 차단 우회)"""
     import pandas as pd
     import requests
-    import FinanceDataReader as fdr
 
     uni = pd.read_csv(universe_csv, dtype={"code": str}, encoding="utf-8-sig")
     names = []
-
-    print("KRX 시가총액 전체 다운로드 중...")
-    cap_all = None
-    try:
-        cap_all = fdr.StockListing('KRX')
-        cap_all.columns = [c.strip() for c in cap_all.columns]
-        for cn in ['Code', 'Symbol']:
-            if cn in cap_all.columns:
-                cap_all = cap_all.rename(columns={cn: 'Code'})
-                break
-        cap_all['Code'] = cap_all['Code'].astype(str).str.zfill(6)
-        print("  OK: " + str(len(cap_all)) + "종목")
-    except Exception as e:
-        print("  KRX 리스팅 실패: " + str(e))
 
     session = requests.Session()
     session.headers.update({
@@ -214,39 +202,59 @@ def fetch_live(universe_csv):
         "Accept-Language": "ko-KR,ko;q=0.9",
     })
 
+    # FDR KRX 시도 (해외 IP 차단될 수 있음)
+    cap_map = {}
+    try:
+        import FinanceDataReader as fdr
+        cap_all = fdr.StockListing('KRX')
+        if "Access Denied" in str(cap_all) if isinstance(cap_all, str) else False:
+            raise ValueError("KRX Access Denied")
+        cap_all.columns = [c.strip() for c in cap_all.columns]
+        for cn in ['Code', 'Symbol']:
+            if cn in cap_all.columns:
+                cap_all = cap_all.rename(columns={cn: 'Code'})
+                break
+        cap_all['Code'] = cap_all['Code'].astype(str).str.zfill(6)
+        for col in ['Marcap', 'MarCap', 'marcap', '시가총액', 'Mktcap']:
+            if col in cap_all.columns:
+                for _, r in cap_all.iterrows():
+                    v = r.get(col)
+                    if pd.notna(v) and float(v) > 0:
+                        raw = float(v)
+                        code = str(r['Code']).zfill(6)
+                        cap_map[code] = raw / 1e8 if raw > 1e10 else raw
+                break
+        print("  FDR KRX OK: " + str(len(cap_map)) + "종목")
+    except Exception as e:
+        print("  FDR KRX 실패 (NAVER fallback): " + str(e))
+
     for _, row in uni.iterrows():
         code = row["code"].zfill(6)
         name = row["name"]
         sector = row["sector"]
         holdco = bool(int(row.get("holdco", 0)))
         try:
-            mktcap = None
-            if cap_all is not None:
-                match = cap_all[cap_all['Code'] == code]
-                if not match.empty:
-                    for col in ['Marcap', 'MarCap', 'marcap', '시가총액', 'Mktcap']:
-                        if col in match.columns:
-                            v = match.iloc[0][col]
-                            if pd.notna(v) and float(v) > 0:
-                                raw = float(v)
-                                mktcap = raw / 1e8 if raw > 1e10 else raw
-                                break
+            mktcap = cap_map.get(code)
+
+            # FDR 실패 시 NAVER에서 개별 시총 조회
+            if mktcap is None or mktcap <= 0:
+                mktcap = get_naver_mktcap(code, session)
+                if mktcap:
+                    print("  " + code + " " + name + " NAVER mktcap=" + str(round(mktcap)) + "억")
+
             if mktcap is None or mktcap <= 0:
                 print("  " + code + " " + name + " 실패: 시총 없음")
                 continue
 
             fin = fetch_naver_json_financials(code, session)
 
-            # FCF가 null이면 EV/FCF hint로 추정
             if fin["fcf_ttm"] is None:
                 hint = EVFCF_HINT.get(code, -1)
                 if hint > 0:
-                    ev_est = mktcap  # net_debt 모를 때 mktcap으로 근사
-                    fcf_est = round(ev_est / hint, 1)
+                    fcf_est = round(mktcap / hint, 1)
                     fin["fcf_ttm"] = fcf_est
                     fin["fcf_3y_avg"] = fcf_est
                     fin["fcf_cagr_5y"] = 0.05
-                    print("    " + code + " FCF hint 사용: " + str(fcf_est) + "억 (hint=" + str(hint) + ")")
 
             net_debt = 0.0 if sector in ("금융", "지주") else fin["net_debt"]
             names.append({
