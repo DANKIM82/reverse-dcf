@@ -97,12 +97,17 @@ def fetch_live(universe_csv):
     """pykrx 시총 + OpenDART 재무. 로컬에서 API 키와 함께 실행."""
     import pandas as pd
     from pykrx import stock
-    import OpenDartReader
+    try:                                    # 배포판/OS별 모듈명 대소문자 상이(리눅스는 구분)
+        import OpenDartReader as _odr
+    except ModuleNotFoundError:
+        import opendartreader as _odr
 
     api_key = os.environ.get("DART_API_KEY")
     if not api_key:
         sys.exit("DART_API_KEY 환경변수가 필요합니다.")
-    dart = OpenDartReader(api_key)
+    # 구판은 모듈 자체가 호출가능(sys.modules 치환), 신판은 클래스 속성일 수 있음
+    _Client = _odr if callable(_odr) else _odr.OpenDartReader
+    dart = _Client(api_key)
 
     uni = pd.read_csv(universe_csv, dtype={"code": str}, encoding="utf-8-sig")
     today = datetime.today().strftime("%Y%m%d")
