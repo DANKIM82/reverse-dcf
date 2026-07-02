@@ -2,6 +2,6 @@
 numpy
 
 # 실데이터 수집(--fetch) 시에만 필요
-pandas>=2.2,<3        # pykrx 호환 위해 3.x 회피
+pandas>=2.2,<3         # pykrx 호환 위해 3.x 회피
 pykrx
-OpenDartReader        # PyPI 정규화명: opendartreader (Python>=3.13 필요)
+opendartreader         # PyPI 정규화명 (소문자). Python>=3.10 지원
