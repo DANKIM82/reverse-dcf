@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# 비밀키 — 절대 커밋 금지 (DART_API_KEY 등)
+.env
+*.key
+secrets*.json
+
+# 스크리너가 내보내는 사용자 산출물
+workspace_*.json
+screener_*.csv
+
+# OS/IDE
+.DS_Store
+.idea/
+.vscode/

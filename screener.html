@@ -1,0 +1,1945 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>역DCF 유니버스 스크리너</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F4F5F7; --panel:#FFFFFF; --ink:#1A1D23; --muted:#757D8A;
+  --line:#E2E5EA; --line-soft:#EDEFF3; --navy:#22304A;
+  --red:#D6403C; --red-soft:#FBEAE9; --blue:#2563C9; --blue-soft:#E8EFFB;
+  --amber:#B7791F; --amber-soft:#FBF3E4;
+  --sans:'IBM Plex Sans KR',Pretendard,-apple-system,'Malgun Gothic',sans-serif;
+  --mono:'IBM Plex Mono','IBM Plex Sans KR',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{font-size:14px}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.45}
+button{font-family:var(--sans);cursor:pointer}
+input,select{font-family:var(--sans);font-size:.92rem;color:var(--ink)}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* ---------- 헤더 ---------- */
+header{background:var(--navy);color:#fff;padding:.7rem 1.2rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+header h1{font-size:1.05rem;font-weight:700;letter-spacing:-.01em}
+header h1 span{font-weight:400;opacity:.55;margin-left:.5rem;font-size:.85rem}
+.badge{font-size:.72rem;font-weight:600;padding:.15rem .55rem;border-radius:3px;letter-spacing:.02em}
+.badge.demo{background:var(--amber);color:#fff}
+.badge.live{background:#2E9E5B;color:#fff}
+.hd-actions{margin-left:auto;display:flex;gap:.45rem}
+.hd-actions button{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:#fff;
+  padding:.32rem .7rem;border-radius:4px;font-size:.8rem;font-weight:500}
+.hd-actions button:hover{background:rgba(255,255,255,.22)}
+
+/* ---------- 가정 콕핏 ---------- */
+.cockpit{background:var(--panel);border-bottom:1px solid var(--line);padding:.65rem 1.2rem;
+  display:flex;align-items:center;gap:1.4rem;flex-wrap:wrap}
+.ctl{display:flex;flex-direction:column;gap:.18rem}
+.ctl label{font-size:.68rem;font-weight:600;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+.ctl-row{display:flex;align-items:center;gap:.4rem}
+.ctl input[type=number]{width:4.6rem;padding:.25rem .4rem;border:1px solid var(--line);border-radius:4px;font-family:var(--mono)}
+.ctl input[type=range]{width:9rem;accent-color:var(--navy)}
+.ctl select{padding:.25rem .4rem;border:1px solid var(--line);border-radius:4px;background:#fff}
+.ctl .val{font-family:var(--mono);font-size:.85rem;font-weight:600;min-width:4.2rem}
+.chk{display:flex;align-items:center;gap:.3rem;font-size:.82rem;color:var(--ink)}
+.chk input{accent-color:var(--navy)}
+.presets{display:flex;gap:.3rem}
+.presets button{border:1px solid var(--line);background:#fff;padding:.28rem .65rem;border-radius:4px;font-size:.78rem;font-weight:500}
+.presets button:hover{border-color:var(--navy)}
+.presets button.active{background:var(--navy);color:#fff;border-color:var(--navy)}
+.solve-time{margin-left:auto;font-size:.75rem;color:var(--muted)}
+.solve-time b{font-family:var(--mono);color:var(--ink)}
+
+/* ---------- 요약 스트립 ---------- */
+.summary{display:flex;gap:0;background:var(--panel);border-bottom:1px solid var(--line);padding:0 1.2rem;overflow-x:auto}
+.stat{padding:.55rem 1.3rem .55rem 0;margin-right:1.3rem;border-right:1px solid var(--line-soft)}
+.stat:last-child{border-right:none}
+.stat .k{font-size:.68rem;color:var(--muted);font-weight:600;letter-spacing:.03em}
+.stat .v{font-family:var(--mono);font-size:1.05rem;font-weight:600;margin-top:.05rem}
+.stat .v.red{color:var(--red)} .stat .v.blue{color:var(--blue)}
+
+/* ---------- 필터 ---------- */
+.filters{padding:.6rem 1.2rem;display:flex;align-items:center;gap:.7rem;flex-wrap:wrap}
+.search{position:relative}
+.search input{width:15rem;padding:.35rem .6rem .35rem 1.8rem;border:1px solid var(--line);border-radius:5px;background:#fff}
+.search::before{content:"⌕";position:absolute;left:.55rem;top:.28rem;color:var(--muted);font-size:1rem}
+.chips{display:flex;gap:.3rem;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:#fff;padding:.22rem .6rem;border-radius:99px;font-size:.76rem;color:var(--ink)}
+.chip:hover{border-color:var(--navy)}
+.chip.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.chip.sig-long.on{background:var(--red);border-color:var(--red)}
+.chip.sig-short.on{background:var(--blue);border-color:var(--blue)}
+.f-label{font-size:.72rem;color:var(--muted);font-weight:600}
+
+/* ---------- 테이블 ---------- */
+.table-wrap{margin:0 1.2rem 2rem;background:var(--panel);border:1px solid var(--line);border-radius:6px;overflow:auto;max-height:calc(100vh - 250px)}
+table{width:100%;border-collapse:collapse;font-size:.85rem;min-width:1080px}
+thead th{position:sticky;top:0;background:#FAFBFC;border-bottom:1px solid var(--line);
+  padding:.5rem .6rem;font-size:.7rem;font-weight:600;color:var(--muted);letter-spacing:.03em;
+  text-align:right;white-space:nowrap;cursor:pointer;user-select:none;z-index:2}
+thead th.l{text-align:left}
+thead th:hover{color:var(--ink)}
+thead th .arr{font-size:.6rem;margin-left:.15rem}
+tbody td{padding:.42rem .6rem;border-bottom:1px solid var(--line-soft);text-align:right;white-space:nowrap}
+tbody td.l{text-align:left}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:#F6F8FB}
+tbody tr.excluded{opacity:.5}
+.nm{font-weight:600}
+.cd{color:var(--muted);font-size:.74rem;font-family:var(--mono);margin-left:.35rem}
+.sec{font-size:.76rem;color:var(--muted)}
+td .pos{color:var(--red)} td .neg{color:var(--blue)}
+.tag{display:inline-block;width:1.5rem;text-align:center;font-size:.7rem;font-weight:700;border-radius:3px;padding:.1rem 0}
+.tag.L{background:var(--red-soft);color:var(--red)}
+.tag.S{background:var(--blue-soft);color:var(--blue)}
+.tag.W{background:var(--amber-soft);color:var(--amber)}
+.tag.none{color:#C6CBD3}
+.flag{display:inline-block;font-size:.66rem;font-weight:600;padding:.08rem .4rem;border-radius:3px;margin-left:.25rem;background:var(--line-soft);color:var(--muted)}
+.flag.warn{background:var(--amber-soft);color:var(--amber)}
+.sig{font-size:.74rem;font-weight:600}
+.sig.long{color:var(--red)} .sig.short{color:var(--blue)} .sig.neutral{color:var(--muted)}
+
+/* 갭 다이버징 바 — 시그니처 */
+.gapcell{display:flex;align-items:center;gap:.5rem;justify-content:flex-end}
+.gapbar{width:110px;height:12px;position:relative;flex:none}
+.gapbar::before{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--line)}
+.gapbar .fill{position:absolute;top:1px;height:10px;border-radius:2px}
+.gapbar .fill.long{right:50%;background:var(--red)}
+.gapbar .fill.short{left:50%;background:var(--blue)}
+.gapv{font-family:var(--mono);min-width:4.4rem;font-weight:600}
+
+/* ---------- 드로어 ---------- */
+.overlay{position:fixed;inset:0;background:rgba(20,26,40,.35);opacity:0;pointer-events:none;transition:opacity .18s;z-index:10}
+.overlay.open{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:-560px;width:560px;max-width:96vw;height:100vh;background:var(--panel);
+  box-shadow:-8px 0 30px rgba(20,26,40,.18);transition:right .22s ease;z-index:11;display:flex;flex-direction:column}
+.drawer.open{right:0}
+.dr-head{padding:1rem 1.3rem .8rem;border-bottom:1px solid var(--line)}
+.dr-head h2{font-size:1.15rem;font-weight:700}
+.dr-head .sub{color:var(--muted);font-size:.8rem;margin-top:.15rem}
+.dr-close{position:absolute;top:.9rem;right:1rem;background:none;border:none;font-size:1.3rem;color:var(--muted)}
+.dr-body{overflow-y:auto;padding:1rem 1.3rem 2rem;flex:1}
+.dr-sec{margin-bottom:1.4rem}
+.dr-sec h3{font-size:.72rem;font-weight:700;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;margin-bottom:.55rem}
+.kv{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem}
+.kv .cell{background:#FAFBFC;border:1px solid var(--line-soft);border-radius:5px;padding:.5rem .6rem}
+.kv .cell .k{font-size:.66rem;color:var(--muted);font-weight:600}
+.kv .cell .v{font-family:var(--mono);font-size:1rem;font-weight:600;margin-top:.1rem}
+.pvbar{height:14px;border-radius:4px;overflow:hidden;display:flex;margin:.4rem 0 .25rem}
+.pvbar .a{background:var(--navy)} .pvbar .b{background:#B9C4D6}
+.pvlegend{font-size:.72rem;color:var(--muted)}
+.tagbtns{display:flex;gap:.4rem}
+.tagbtns button{flex:1;padding:.4rem 0;border-radius:5px;border:1px solid var(--line);background:#fff;font-weight:600;font-size:.82rem}
+.tagbtns button.on-L{background:var(--red);border-color:var(--red);color:#fff}
+.tagbtns button.on-S{background:var(--blue);border-color:var(--blue);color:#fff}
+.tagbtns button.on-W{background:var(--amber);border-color:var(--amber);color:#fff}
+.ov-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+.ov-grid .ctl input{width:100%}
+.heat{border-collapse:collapse;width:100%;font-size:.74rem}
+.heat th,.heat td{border:1px solid var(--line-soft);padding:.3rem .2rem;text-align:center;font-family:var(--mono)}
+.heat th{background:#FAFBFC;color:var(--muted);font-weight:600;font-size:.68rem}
+.heat td{font-weight:600}
+.heat td.base{outline:2px solid var(--navy);outline-offset:-2px}
+textarea.note{width:100%;min-height:70px;border:1px solid var(--line);border-radius:5px;padding:.5rem;font-family:var(--sans);font-size:.85rem;resize:vertical}
+.dr-warn{background:var(--amber-soft);border:1px solid #EAD9B0;color:#7A5B1E;border-radius:5px;padding:.55rem .7rem;font-size:.8rem;margin-bottom:1rem}
+.empty{padding:3rem;text-align:center;color:var(--muted)}
+@media (max-width:760px){
+  .cockpit{gap:.8rem} .search input{width:100%}
+  html{font-size:13px}
+}
+@media (prefers-reduced-motion:reduce){.drawer,.overlay{transition:none}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>역DCF 유니버스 스크리너 <span>implied growth vs 앵커 갭 기반 L/S 후보 랭킹</span></h1>
+  <span id="srcBadge" class="badge demo">DEMO 데이터</span>
+  <div class="hd-actions">
+    <button id="btnLoadData">데이터 JSON 불러오기</button>
+    <button id="btnSaveWs">워크스페이스 저장</button>
+    <button id="btnLoadWs">워크스페이스 불러오기</button>
+    <button id="btnCsv">CSV 내보내기</button>
+  </div>
+</header>
+
+<div class="cockpit">
+  <div class="ctl">
+    <label>WACC 기준</label>
+    <div class="ctl-row">
+      <select id="waccMode">
+        <option value="sector">섹터 기본 + 시프트</option>
+        <option value="global">전역 고정</option>
+      </select>
+      <input type="range" id="waccShift" min="-200" max="200" step="25" value="0">
+      <span class="val" id="waccShiftVal">+0bp</span>
+      <input type="number" id="waccGlobal" step="0.1" value="9.5" style="display:none"> 
+      <span id="waccGlobalPct" style="display:none;font-size:.85rem">%</span>
+    </div>
+  </div>
+  <div class="ctl">
+    <label>영구성장률 g∞</label>
+    <div class="ctl-row"><input type="number" id="tg" step="0.1" value="1.0"><span style="font-size:.85rem">%</span></div>
+  </div>
+  <div class="ctl">
+    <label>추정기간 N</label>
+    <div class="ctl-row"><select id="nYears"><option>5</option><option>7</option><option>10</option></select><span style="font-size:.85rem">년</span></div>
+  </div>
+  <div class="ctl">
+    <label>FCF 기준</label>
+    <div class="ctl-row"><select id="fcfBasis"><option value="ttm">TTM</option><option value="avg3">3Y 평균</option></select></div>
+  </div>
+  <div class="ctl">
+    <label>옵션</label>
+    <div class="ctl-row">
+      <span class="chk"><input type="checkbox" id="fade">fade</span>
+      <span class="chk"><input type="checkbox" id="midYear">mid-year</span>
+    </div>
+  </div>
+  <div class="ctl">
+    <label>신호 임계 |갭|</label>
+    <div class="ctl-row"><input type="number" id="thr" step="0.5" value="3.0" style="width:3.6rem"><span style="font-size:.85rem">%p</span></div>
+  </div>
+  <div class="ctl">
+    <label>시나리오</label>
+    <div class="presets">
+      <button data-preset="base" class="active">Base</button>
+      <button data-preset="bear">Bear</button>
+      <button data-preset="bull">Bull</button>
+    </div>
+  </div>
+  <div class="solve-time">유니버스 재계산 <b id="solveMs">–</b> ms</div>
+</div>
+
+<div class="summary" id="summary"></div>
+
+<div class="filters">
+  <div class="search"><input id="q" type="text" placeholder="종목명·코드 검색  ( / )"></div>
+  <span class="f-label">신호</span>
+  <div class="chips" id="sigChips">
+    <button class="chip sig-long" data-sig="long">롱 후보</button>
+    <button class="chip sig-short" data-sig="short">숏 후보</button>
+    <button class="chip" data-sig="neutral">중립</button>
+    <button class="chip" data-sig="excluded">제외</button>
+  </div>
+  <span class="f-label">태그</span>
+  <div class="chips" id="tagChips">
+    <button class="chip" data-tag="L">L</button>
+    <button class="chip" data-tag="S">S</button>
+    <button class="chip" data-tag="W">W</button>
+  </div>
+  <span class="f-label">섹터</span>
+  <div class="chips" id="secChips"></div>
+</div>
+
+<div class="table-wrap">
+  <table id="tbl">
+    <thead><tr id="thr-row"></tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+
+<div class="overlay" id="overlay"></div>
+<aside class="drawer" id="drawer">
+  <div class="dr-head" style="position:relative">
+    <h2 id="drName">–</h2>
+    <div class="sub" id="drSub"></div>
+    <button class="dr-close" id="drClose" aria-label="닫기">×</button>
+  </div>
+  <div class="dr-body" id="drBody"></div>
+</aside>
+
+<input type="file" id="fileData" accept=".json" style="display:none">
+<input type="file" id="fileWs" accept=".json" style="display:none">
+
+<script>
+/* ============================================================
+   데이터 (pipeline.py 출력을 그대로 임베드. '데이터 JSON 불러오기'로 교체 가능)
+   ============================================================ */
+const EMBEDDED = {
+ "meta": {
+  "generated": "2026-07-02T09:26:52",
+  "source": "demo",
+  "unit": "억원",
+  "terminal_g_default": 0.01
+ },
+ "sector_wacc": {
+  "반도체": 0.105,
+  "IT부품": 0.105,
+  "2차전지": 0.11,
+  "인터넷": 0.105,
+  "게임": 0.11,
+  "자동차": 0.095,
+  "조선": 0.1,
+  "방산": 0.095,
+  "철강화학": 0.095,
+  "바이오": 0.115,
+  "음식료": 0.08,
+  "화장품": 0.095,
+  "금융": 0.09,
+  "지주": 0.09,
+  "유틸통신": 0.075,
+  "엔터": 0.11,
+  "유통소비": 0.085,
+  "건설기계": 0.1,
+  "운송": 0.1,
+  "기타": 0.095
+ },
+ "names": [
+  {
+   "code": "005930",
+   "name": "삼성전자",
+   "sector": "반도체",
+   "holdco": false,
+   "mktcap": 4328747.3,
+   "net_debt": 300584.8,
+   "ev": 4629332.1,
+   "fcf_ttm": 223540.2,
+   "fcf_3y_avg": 233393.6,
+   "revenue_ttm": 6799366.0,
+   "norm_fcf_margin": 0.0413,
+   "fcf_cagr_5y": -0.1256
+  },
+  {
+   "code": "000660",
+   "name": "SK하이닉스",
+   "sector": "반도체",
+   "holdco": false,
+   "mktcap": 2063056.7,
+   "net_debt": -177305.7,
+   "ev": 1885751.0,
+   "fcf_ttm": 133675.9,
+   "fcf_3y_avg": 124289.1,
+   "revenue_ttm": 2419218.9,
+   "norm_fcf_margin": 0.0631,
+   "fcf_cagr_5y": 0.12
+  },
+  {
+   "code": "042700",
+   "name": "한미반도체",
+   "sector": "반도체",
+   "holdco": false,
+   "mktcap": 117962.9,
+   "net_debt": -4291.6,
+   "ev": 113671.3,
+   "fcf_ttm": 2865.0,
+   "fcf_3y_avg": 2356.0,
+   "revenue_ttm": 136600.7,
+   "norm_fcf_margin": 0.0208,
+   "fcf_cagr_5y": 0.1291
+  },
+  {
+   "code": "058470",
+   "name": "리노공업",
+   "sector": "반도체",
+   "holdco": false,
+   "mktcap": 38254.3,
+   "net_debt": 12828.5,
+   "ev": 51082.9,
+   "fcf_ttm": 1690.0,
+   "fcf_3y_avg": 1812.4,
+   "revenue_ttm": 36726.6,
+   "norm_fcf_margin": 0.0453,
+   "fcf_cagr_5y": 0.0183
+  },
+  {
+   "code": "403870",
+   "name": "HPSP",
+   "sector": "반도체",
+   "holdco": false,
+   "mktcap": 26888.6,
+   "net_debt": 5149.8,
+   "ev": 32038.4,
+   "fcf_ttm": 961.5,
+   "fcf_3y_avg": 1094.8,
+   "revenue_ttm": 22708.8,
+   "norm_fcf_margin": 0.0524,
+   "fcf_cagr_5y": 0.0039
+  },
+  {
+   "code": "240810",
+   "name": "원익IPS",
+   "sector": "반도체",
+   "holdco": false,
+   "mktcap": 18136.8,
+   "net_debt": -1542.3,
+   "ev": 16594.5,
+   "fcf_ttm": 742.1,
+   "fcf_3y_avg": 652.6,
+   "revenue_ttm": 16769.0,
+   "norm_fcf_margin": 0.048,
+   "fcf_cagr_5y": 0.1086
+  },
+  {
+   "code": "011070",
+   "name": "LG이노텍",
+   "sector": "IT부품",
+   "holdco": false,
+   "mktcap": 53004.0,
+   "net_debt": 327.7,
+   "ev": 53331.7,
+   "fcf_ttm": 5192.1,
+   "fcf_3y_avg": 5616.2,
+   "revenue_ttm": 39540.6,
+   "norm_fcf_margin": 0.1666,
+   "fcf_cagr_5y": 0.0605
+  },
+  {
+   "code": "009150",
+   "name": "삼성전기",
+   "sector": "IT부품",
+   "holdco": false,
+   "mktcap": 107031.1,
+   "net_debt": -5356.5,
+   "ev": 101674.6,
+   "fcf_ttm": 7950.4,
+   "fcf_3y_avg": 8550.0,
+   "revenue_ttm": 133382.0,
+   "norm_fcf_margin": 0.0777,
+   "fcf_cagr_5y": 0.1068
+  },
+  {
+   "code": "007660",
+   "name": "이수페타시스",
+   "sector": "IT부품",
+   "holdco": false,
+   "mktcap": 29630.2,
+   "net_debt": 3981.4,
+   "ev": 33611.7,
+   "fcf_ttm": 1099.7,
+   "fcf_3y_avg": 923.9,
+   "revenue_ttm": 28602.5,
+   "norm_fcf_margin": 0.0364,
+   "fcf_cagr_5y": -0.0279
+  },
+  {
+   "code": "373220",
+   "name": "LG에너지솔루션",
+   "sector": "2차전지",
+   "holdco": false,
+   "mktcap": 917574.7,
+   "net_debt": 153564.5,
+   "ev": 1071139.2,
+   "fcf_ttm": -17286.6,
+   "fcf_3y_avg": -13886.1,
+   "revenue_ttm": 701706.2,
+   "norm_fcf_margin": 0.02,
+   "fcf_cagr_5y": null
+  },
+  {
+   "code": "006400",
+   "name": "삼성SDI",
+   "sector": "2차전지",
+   "holdco": false,
+   "mktcap": 245253.8,
+   "net_debt": -10474.2,
+   "ev": 234779.6,
+   "fcf_ttm": -3731.1,
+   "fcf_3y_avg": -3985.0,
+   "revenue_ttm": 166951.0,
+   "norm_fcf_margin": 0.022,
+   "fcf_cagr_5y": null
+  },
+  {
+   "code": "247540",
+   "name": "에코프로비엠",
+   "sector": "2차전지",
+   "holdco": false,
+   "mktcap": 112129.8,
+   "net_debt": -359.2,
+   "ev": 111770.7,
+   "fcf_ttm": -2416.2,
+   "fcf_3y_avg": -1936.1,
+   "revenue_ttm": 150330.0,
+   "norm_fcf_margin": 0.02,
+   "fcf_cagr_5y": null
+  },
+  {
+   "code": "003670",
+   "name": "포스코퓨처엠",
+   "sector": "2차전지",
+   "holdco": false,
+   "mktcap": 97191.6,
+   "net_debt": 24979.2,
+   "ev": 122170.8,
+   "fcf_ttm": 2988.5,
+   "fcf_3y_avg": 2414.6,
+   "revenue_ttm": 123125.4,
+   "norm_fcf_margin": 0.0213,
+   "fcf_cagr_5y": 0.0156
+  },
+  {
+   "code": "035420",
+   "name": "NAVER",
+   "sector": "인터넷",
+   "holdco": false,
+   "mktcap": 287482.1,
+   "net_debt": 28898.4,
+   "ev": 316380.5,
+   "fcf_ttm": 20602.7,
+   "fcf_3y_avg": 21503.3,
+   "revenue_ttm": 246437.0,
+   "norm_fcf_margin": 0.0891,
+   "fcf_cagr_5y": 0.1099
+  },
+  {
+   "code": "035720",
+   "name": "카카오",
+   "sector": "인터넷",
+   "holdco": false,
+   "mktcap": 187035.3,
+   "net_debt": 5780.6,
+   "ev": 192815.8,
+   "fcf_ttm": 9122.5,
+   "fcf_3y_avg": 7674.8,
+   "revenue_ttm": 278738.1,
+   "norm_fcf_margin": 0.0325,
+   "fcf_cagr_5y": -0.0398
+  },
+  {
+   "code": "259960",
+   "name": "크래프톤",
+   "sector": "게임",
+   "holdco": false,
+   "mktcap": 148761.8,
+   "net_debt": 49773.9,
+   "ev": 198535.7,
+   "fcf_ttm": 13604.6,
+   "fcf_3y_avg": 14297.2,
+   "revenue_ttm": 108103.7,
+   "norm_fcf_margin": 0.1241,
+   "fcf_cagr_5y": -0.034
+  },
+  {
+   "code": "036570",
+   "name": "엔씨소프트",
+   "sector": "게임",
+   "holdco": false,
+   "mktcap": 44831.2,
+   "net_debt": 3491.8,
+   "ev": 48323.1,
+   "fcf_ttm": 4373.2,
+   "fcf_3y_avg": 3966.8,
+   "revenue_ttm": 27442.4,
+   "norm_fcf_margin": 0.1796,
+   "fcf_cagr_5y": 0.0714
+  },
+  {
+   "code": "251270",
+   "name": "넷마블",
+   "sector": "게임",
+   "holdco": false,
+   "mktcap": 43102.2,
+   "net_debt": 9039.9,
+   "ev": 52142.1,
+   "fcf_ttm": 1859.9,
+   "fcf_3y_avg": 1896.3,
+   "revenue_ttm": 50852.7,
+   "norm_fcf_margin": 0.0348,
+   "fcf_cagr_5y": 0.1942
+  },
+  {
+   "code": "005380",
+   "name": "현대차",
+   "sector": "자동차",
+   "holdco": false,
+   "mktcap": 487371.1,
+   "net_debt": -62964.9,
+   "ev": 424406.2,
+   "fcf_ttm": 59272.3,
+   "fcf_3y_avg": 54260.9,
+   "revenue_ttm": 255423.2,
+   "norm_fcf_margin": 0.2411,
+   "fcf_cagr_5y": 0.0821
+  },
+  {
+   "code": "000270",
+   "name": "기아",
+   "sector": "자동차",
+   "holdco": false,
+   "mktcap": 360471.2,
+   "net_debt": 112668.9,
+   "ev": 473140.0,
+   "fcf_ttm": 74861.2,
+   "fcf_3y_avg": 68977.5,
+   "revenue_ttm": 154052.6,
+   "norm_fcf_margin": 0.25,
+   "fcf_cagr_5y": 0.1072
+  },
+  {
+   "code": "012330",
+   "name": "현대모비스",
+   "sector": "자동차",
+   "holdco": false,
+   "mktcap": 238725.8,
+   "net_debt": 57620.7,
+   "ev": 296346.5,
+   "fcf_ttm": 42144.7,
+   "fcf_3y_avg": 40894.3,
+   "revenue_ttm": 364150.4,
+   "norm_fcf_margin": 0.1268,
+   "fcf_cagr_5y": 0.3122
+  },
+  {
+   "code": "018880",
+   "name": "한온시스템",
+   "sector": "자동차",
+   "holdco": false,
+   "mktcap": 39681.9,
+   "net_debt": -655.2,
+   "ev": 39026.6,
+   "fcf_ttm": 2524.9,
+   "fcf_3y_avg": 2480.0,
+   "revenue_ttm": 16901.9,
+   "norm_fcf_margin": 0.1806,
+   "fcf_cagr_5y": -0.0051
+  },
+  {
+   "code": "161390",
+   "name": "한국타이어앤테크놀로지",
+   "sector": "자동차",
+   "holdco": false,
+   "mktcap": 67130.9,
+   "net_debt": -5362.1,
+   "ev": 61768.8,
+   "fcf_ttm": 8452.9,
+   "fcf_3y_avg": 7083.6,
+   "revenue_ttm": 49507.7,
+   "norm_fcf_margin": 0.1665,
+   "fcf_cagr_5y": 0.0062
+  },
+  {
+   "code": "009540",
+   "name": "HD한국조선해양",
+   "sector": "조선",
+   "holdco": false,
+   "mktcap": 160214.8,
+   "net_debt": 37542.1,
+   "ev": 197756.9,
+   "fcf_ttm": 11138.6,
+   "fcf_3y_avg": 12482.0,
+   "revenue_ttm": 71278.8,
+   "norm_fcf_margin": 0.1965,
+   "fcf_cagr_5y": -0.0566
+  },
+  {
+   "code": "010140",
+   "name": "삼성중공업",
+   "sector": "조선",
+   "holdco": false,
+   "mktcap": 105740.4,
+   "net_debt": 28010.1,
+   "ev": 133750.5,
+   "fcf_ttm": 4722.5,
+   "fcf_3y_avg": 4302.2,
+   "revenue_ttm": 79210.3,
+   "norm_fcf_margin": 0.0601,
+   "fcf_cagr_5y": 0.1338
+  },
+  {
+   "code": "042660",
+   "name": "한화오션",
+   "sector": "조선",
+   "holdco": false,
+   "mktcap": 92679.0,
+   "net_debt": 29473.9,
+   "ev": 122152.9,
+   "fcf_ttm": -844.8,
+   "fcf_3y_avg": -287.6,
+   "revenue_ttm": 85460.8,
+   "norm_fcf_margin": 0.02,
+   "fcf_cagr_5y": null
+  },
+  {
+   "code": "329180",
+   "name": "HD현대중공업",
+   "sector": "조선",
+   "holdco": false,
+   "mktcap": 223500.6,
+   "net_debt": 50132.1,
+   "ev": 273632.7,
+   "fcf_ttm": 8411.8,
+   "fcf_3y_avg": 9359.8,
+   "revenue_ttm": 174132.7,
+   "norm_fcf_margin": 0.065,
+   "fcf_cagr_5y": 0.0757
+  },
+  {
+   "code": "012450",
+   "name": "한화에어로스페이스",
+   "sector": "방산",
+   "holdco": false,
+   "mktcap": 335519.5,
+   "net_debt": 12356.8,
+   "ev": 347876.3,
+   "fcf_ttm": 13131.4,
+   "fcf_3y_avg": 13937.4,
+   "revenue_ttm": 511390.7,
+   "norm_fcf_margin": 0.0272,
+   "fcf_cagr_5y": 0.0665
+  },
+  {
+   "code": "079550",
+   "name": "LIG넥스원",
+   "sector": "방산",
+   "holdco": false,
+   "mktcap": 70946.2,
+   "net_debt": 18840.2,
+   "ev": 89786.4,
+   "fcf_ttm": 3680.0,
+   "fcf_3y_avg": 3174.9,
+   "revenue_ttm": 102834.7,
+   "norm_fcf_margin": 0.0302,
+   "fcf_cagr_5y": 0.1815
+  },
+  {
+   "code": "064350",
+   "name": "현대로템",
+   "sector": "방산",
+   "holdco": false,
+   "mktcap": 113171.7,
+   "net_debt": 27014.3,
+   "ev": 140186.0,
+   "fcf_ttm": 4530.4,
+   "fcf_3y_avg": 4418.3,
+   "revenue_ttm": 47161.3,
+   "norm_fcf_margin": 0.0929,
+   "fcf_cagr_5y": 0.0353
+  },
+  {
+   "code": "005490",
+   "name": "POSCO홀딩스",
+   "sector": "철강화학",
+   "holdco": false,
+   "mktcap": 222386.7,
+   "net_debt": 41993.1,
+   "ev": 264379.8,
+   "fcf_ttm": 32908.5,
+   "fcf_3y_avg": 32158.7,
+   "revenue_ttm": 244033.8,
+   "norm_fcf_margin": 0.1291,
+   "fcf_cagr_5y": -0.0259
+  },
+  {
+   "code": "010130",
+   "name": "고려아연",
+   "sector": "철강화학",
+   "holdco": false,
+   "mktcap": 174598.0,
+   "net_debt": 36264.6,
+   "ev": 210862.6,
+   "fcf_ttm": 12679.9,
+   "fcf_3y_avg": 10725.6,
+   "revenue_ttm": 132893.2,
+   "norm_fcf_margin": 0.0884,
+   "fcf_cagr_5y": 0.0064
+  },
+  {
+   "code": "011170",
+   "name": "롯데케미칼",
+   "sector": "철강화학",
+   "holdco": false,
+   "mktcap": 31465.8,
+   "net_debt": 10314.8,
+   "ev": 41780.6,
+   "fcf_ttm": -382.7,
+   "fcf_3y_avg": -433.3,
+   "revenue_ttm": 13525.0,
+   "norm_fcf_margin": 0.0359,
+   "fcf_cagr_5y": null
+  },
+  {
+   "code": "011780",
+   "name": "금호석유",
+   "sector": "철강화학",
+   "holdco": false,
+   "mktcap": 41607.7,
+   "net_debt": -4038.1,
+   "ev": 37569.6,
+   "fcf_ttm": 5223.1,
+   "fcf_3y_avg": 4944.7,
+   "revenue_ttm": 46403.0,
+   "norm_fcf_margin": 0.1357,
+   "fcf_cagr_5y": 0.2766
+  },
+  {
+   "code": "051910",
+   "name": "LG화학",
+   "sector": "철강화학",
+   "holdco": false,
+   "mktcap": 240087.8,
+   "net_debt": 20093.1,
+   "ev": 260181.0,
+   "fcf_ttm": 5783.5,
+   "fcf_3y_avg": 4662.9,
+   "revenue_ttm": 334998.0,
+   "norm_fcf_margin": 0.02,
+   "fcf_cagr_5y": 0.1585
+  },
+  {
+   "code": "207940",
+   "name": "삼성바이오로직스",
+   "sector": "바이오",
+   "holdco": false,
+   "mktcap": 643854.6,
+   "net_debt": 74291.0,
+   "ev": 718145.6,
+   "fcf_ttm": 16098.9,
+   "fcf_3y_avg": 17768.5,
+   "revenue_ttm": 576305.1,
+   "norm_fcf_margin": 0.0324,
+   "fcf_cagr_5y": 0.249
+  },
+  {
+   "code": "068270",
+   "name": "셀트리온",
+   "sector": "바이오",
+   "holdco": false,
+   "mktcap": 391105.9,
+   "net_debt": 68821.1,
+   "ev": 459927.0,
+   "fcf_ttm": 11390.9,
+   "fcf_3y_avg": 10922.3,
+   "revenue_ttm": 267514.4,
+   "norm_fcf_margin": 0.0489,
+   "fcf_cagr_5y": 0.2416
+  },
+  {
+   "code": "000100",
+   "name": "유한양행",
+   "sector": "바이오",
+   "holdco": false,
+   "mktcap": 98547.4,
+   "net_debt": -9594.7,
+   "ev": 88952.7,
+   "fcf_ttm": 2910.2,
+   "fcf_3y_avg": 2933.7,
+   "revenue_ttm": 136941.1,
+   "norm_fcf_margin": 0.0219,
+   "fcf_cagr_5y": 0.0807
+  },
+  {
+   "code": "196170",
+   "name": "알테오젠",
+   "sector": "바이오",
+   "holdco": false,
+   "mktcap": 160769.1,
+   "net_debt": 49916.4,
+   "ev": 210685.5,
+   "fcf_ttm": 4219.1,
+   "fcf_3y_avg": 3795.7,
+   "revenue_ttm": 86588.3,
+   "norm_fcf_margin": 0.0398,
+   "fcf_cagr_5y": 0.038
+  },
+  {
+   "code": "097950",
+   "name": "CJ제일제당",
+   "sector": "음식료",
+   "holdco": false,
+   "mktcap": 43330.9,
+   "net_debt": -2716.0,
+   "ev": 40615.0,
+   "fcf_ttm": 5844.3,
+   "fcf_3y_avg": 5884.7,
+   "revenue_ttm": 37800.0,
+   "norm_fcf_margin": 0.1599,
+   "fcf_cagr_5y": 0.1411
+  },
+  {
+   "code": "271560",
+   "name": "오리온",
+   "sector": "음식료",
+   "holdco": false,
+   "mktcap": 40054.3,
+   "net_debt": 11515.7,
+   "ev": 51570.0,
+   "fcf_ttm": 4991.7,
+   "fcf_3y_avg": 4069.4,
+   "revenue_ttm": 28008.6,
+   "norm_fcf_margin": 0.164,
+   "fcf_cagr_5y": 0.0412
+  },
+  {
+   "code": "004370",
+   "name": "농심",
+   "sector": "음식료",
+   "holdco": false,
+   "mktcap": 19497.6,
+   "net_debt": -2444.5,
+   "ev": 17053.1,
+   "fcf_ttm": 1932.0,
+   "fcf_3y_avg": 1899.7,
+   "revenue_ttm": 27299.5,
+   "norm_fcf_margin": 0.0641,
+   "fcf_cagr_5y": -0.0501
+  },
+  {
+   "code": "033780",
+   "name": "KT&G",
+   "sector": "음식료",
+   "holdco": false,
+   "mktcap": 146568.8,
+   "net_debt": -14721.9,
+   "ev": 131847.0,
+   "fcf_ttm": 11512.5,
+   "fcf_3y_avg": 12847.1,
+   "revenue_ttm": 199689.9,
+   "norm_fcf_margin": 0.078,
+   "fcf_cagr_5y": -0.0499
+  },
+  {
+   "code": "090430",
+   "name": "아모레퍼시픽",
+   "sector": "화장품",
+   "holdco": false,
+   "mktcap": 83419.6,
+   "net_debt": 19978.8,
+   "ev": 103398.4,
+   "fcf_ttm": 5239.1,
+   "fcf_3y_avg": 5174.2,
+   "revenue_ttm": 119213.8,
+   "norm_fcf_margin": 0.0471,
+   "fcf_cagr_5y": 0.0637
+  },
+  {
+   "code": "051900",
+   "name": "LG생활건강",
+   "sector": "화장품",
+   "holdco": false,
+   "mktcap": 48276.3,
+   "net_debt": 8196.4,
+   "ev": 56472.8,
+   "fcf_ttm": 4989.1,
+   "fcf_3y_avg": 4235.4,
+   "revenue_ttm": 43461.6,
+   "norm_fcf_margin": 0.0968,
+   "fcf_cagr_5y": -0.1081
+  },
+  {
+   "code": "192820",
+   "name": "코스맥스",
+   "sector": "화장품",
+   "holdco": false,
+   "mktcap": 19205.1,
+   "net_debt": 637.5,
+   "ev": 19842.6,
+   "fcf_ttm": 1582.3,
+   "fcf_3y_avg": 1476.0,
+   "revenue_ttm": 14523.9,
+   "norm_fcf_margin": 0.13,
+   "fcf_cagr_5y": -0.0448
+  },
+  {
+   "code": "161890",
+   "name": "한국콜마",
+   "sector": "화장품",
+   "holdco": false,
+   "mktcap": 22498.1,
+   "net_debt": 2035.1,
+   "ev": 24533.2,
+   "fcf_ttm": 2118.7,
+   "fcf_3y_avg": 2092.1,
+   "revenue_ttm": 26617.6,
+   "norm_fcf_margin": 0.096,
+   "fcf_cagr_5y": 0.207
+  },
+  {
+   "code": "257720",
+   "name": "실리콘투",
+   "sector": "화장품",
+   "holdco": false,
+   "mktcap": 20196.3,
+   "net_debt": 3361.9,
+   "ev": 23558.2,
+   "fcf_ttm": 1032.3,
+   "fcf_3y_avg": 1091.4,
+   "revenue_ttm": 24917.4,
+   "norm_fcf_margin": 0.0545,
+   "fcf_cagr_5y": -0.056
+  },
+  {
+   "code": "105560",
+   "name": "KB금융",
+   "sector": "금융",
+   "holdco": false,
+   "mktcap": 311370.8,
+   "net_debt": 0.0,
+   "ev": 311370.8,
+   "fcf_ttm": 58752.5,
+   "fcf_3y_avg": 61925.2,
+   "revenue_ttm": 474257.5,
+   "norm_fcf_margin": 0.1247,
+   "fcf_cagr_5y": 0.1158
+  },
+  {
+   "code": "055550",
+   "name": "신한지주",
+   "sector": "금융",
+   "holdco": false,
+   "mktcap": 307169.3,
+   "net_debt": 0.0,
+   "ev": 307169.3,
+   "fcf_ttm": 48398.0,
+   "fcf_3y_avg": 51975.5,
+   "revenue_ttm": 471576.3,
+   "norm_fcf_margin": 0.1104,
+   "fcf_cagr_5y": -0.0129
+  },
+  {
+   "code": "086790",
+   "name": "하나금융지주",
+   "sector": "금융",
+   "holdco": false,
+   "mktcap": 184864.1,
+   "net_debt": 0.0,
+   "ev": 184864.1,
+   "fcf_ttm": 34694.8,
+   "fcf_3y_avg": 29835.9,
+   "revenue_ttm": 200931.9,
+   "norm_fcf_margin": 0.1613,
+   "fcf_cagr_5y": 0.154
+  },
+  {
+   "code": "316140",
+   "name": "우리금융지주",
+   "sector": "금융",
+   "holdco": false,
+   "mktcap": 120814.7,
+   "net_debt": 0.0,
+   "ev": 120814.7,
+   "fcf_ttm": 21388.1,
+   "fcf_3y_avg": 20794.7,
+   "revenue_ttm": 183334.4,
+   "norm_fcf_margin": 0.1075,
+   "fcf_cagr_5y": -0.1357
+  },
+  {
+   "code": "138040",
+   "name": "메리츠금융지주",
+   "sector": "금융",
+   "holdco": false,
+   "mktcap": 194728.8,
+   "net_debt": 0.0,
+   "ev": 194728.8,
+   "fcf_ttm": 22532.8,
+   "fcf_3y_avg": 21327.6,
+   "revenue_ttm": 234741.3,
+   "norm_fcf_margin": 0.0939,
+   "fcf_cagr_5y": -0.0014
+  },
+  {
+   "code": "000810",
+   "name": "삼성화재",
+   "sector": "금융",
+   "holdco": false,
+   "mktcap": 190316.7,
+   "net_debt": 0.0,
+   "ev": 190316.7,
+   "fcf_ttm": 25182.5,
+   "fcf_3y_avg": 23355.9,
+   "revenue_ttm": 112122.0,
+   "norm_fcf_margin": 0.1998,
+   "fcf_cagr_5y": 0.0367
+  },
+  {
+   "code": "005830",
+   "name": "DB손해보험",
+   "sector": "금융",
+   "holdco": false,
+   "mktcap": 90467.1,
+   "net_debt": 0.0,
+   "ev": 90467.1,
+   "fcf_ttm": 15320.5,
+   "fcf_3y_avg": 16169.1,
+   "revenue_ttm": 137814.6,
+   "norm_fcf_margin": 0.1422,
+   "fcf_cagr_5y": -0.0169
+  },
+  {
+   "code": "323410",
+   "name": "카카오뱅크",
+   "sector": "금융",
+   "holdco": false,
+   "mktcap": 99381.1,
+   "net_debt": 0.0,
+   "ev": 99381.1,
+   "fcf_ttm": 5542.8,
+   "fcf_3y_avg": 5826.7,
+   "revenue_ttm": 53881.9,
+   "norm_fcf_margin": 0.1341,
+   "fcf_cagr_5y": 0.1258
+  },
+  {
+   "code": "034730",
+   "name": "SK",
+   "sector": "지주",
+   "holdco": true,
+   "mktcap": 135345.9,
+   "net_debt": -12051.1,
+   "ev": 123294.8,
+   "fcf_ttm": 23353.7,
+   "fcf_3y_avg": 24291.0,
+   "revenue_ttm": 127926.4,
+   "norm_fcf_margin": 0.2336,
+   "fcf_cagr_5y": 0.0597
+  },
+  {
+   "code": "003550",
+   "name": "LG",
+   "sector": "지주",
+   "holdco": true,
+   "mktcap": 112632.9,
+   "net_debt": 8928.9,
+   "ev": 121561.8,
+   "fcf_ttm": 17282.8,
+   "fcf_3y_avg": 15652.6,
+   "revenue_ttm": 150652.5,
+   "norm_fcf_margin": 0.0981,
+   "fcf_cagr_5y": 0.0972
+  },
+  {
+   "code": "028260",
+   "name": "삼성물산",
+   "sector": "지주",
+   "holdco": true,
+   "mktcap": 252804.3,
+   "net_debt": 73212.1,
+   "ev": 326016.4,
+   "fcf_ttm": 31218.5,
+   "fcf_3y_avg": 34119.1,
+   "revenue_ttm": 404215.3,
+   "norm_fcf_margin": 0.0984,
+   "fcf_cagr_5y": 0.1132
+  },
+  {
+   "code": "000880",
+   "name": "한화",
+   "sector": "지주",
+   "holdco": true,
+   "mktcap": 31351.1,
+   "net_debt": -3285.0,
+   "ev": 28066.2,
+   "fcf_ttm": 6028.2,
+   "fcf_3y_avg": 4883.7,
+   "revenue_ttm": 17921.1,
+   "norm_fcf_margin": 0.25,
+   "fcf_cagr_5y": -0.0134
+  },
+  {
+   "code": "006260",
+   "name": "LS",
+   "sector": "지주",
+   "holdco": true,
+   "mktcap": 36378.5,
+   "net_debt": 11107.0,
+   "ev": 47485.5,
+   "fcf_ttm": 6282.9,
+   "fcf_3y_avg": 5105.9,
+   "revenue_ttm": 16806.5,
+   "norm_fcf_margin": 0.25,
+   "fcf_cagr_5y": 0.0394
+  },
+  {
+   "code": "001040",
+   "name": "CJ",
+   "sector": "지주",
+   "holdco": true,
+   "mktcap": 32713.3,
+   "net_debt": -1005.1,
+   "ev": 31708.3,
+   "fcf_ttm": 5527.5,
+   "fcf_3y_avg": 4532.7,
+   "revenue_ttm": 49506.9,
+   "norm_fcf_margin": 0.1107,
+   "fcf_cagr_5y": 0.1174
+  },
+  {
+   "code": "000150",
+   "name": "두산",
+   "sector": "지주",
+   "holdco": true,
+   "mktcap": 63566.2,
+   "net_debt": 17098.7,
+   "ev": 80664.8,
+   "fcf_ttm": 7779.7,
+   "fcf_3y_avg": 6773.2,
+   "revenue_ttm": 73483.4,
+   "norm_fcf_margin": 0.1143,
+   "fcf_cagr_5y": 0.1718
+  },
+  {
+   "code": "015760",
+   "name": "한국전력",
+   "sector": "유틸통신",
+   "holdco": false,
+   "mktcap": 134484.6,
+   "net_debt": 29224.9,
+   "ev": 163709.5,
+   "fcf_ttm": -1321.5,
+   "fcf_3y_avg": -718.5,
+   "revenue_ttm": 168359.3,
+   "norm_fcf_margin": 0.02,
+   "fcf_cagr_5y": null
+  },
+  {
+   "code": "030200",
+   "name": "KT",
+   "sector": "유틸통신",
+   "holdco": false,
+   "mktcap": 124015.6,
+   "net_debt": -15222.9,
+   "ev": 108792.7,
+   "fcf_ttm": 17014.1,
+   "fcf_3y_avg": 13863.5,
+   "revenue_ttm": 155204.7,
+   "norm_fcf_margin": 0.0866,
+   "fcf_cagr_5y": 0.0382
+  },
+  {
+   "code": "017670",
+   "name": "SK텔레콤",
+   "sector": "유틸통신",
+   "holdco": false,
+   "mktcap": 105302.0,
+   "net_debt": -6132.1,
+   "ev": 99169.9,
+   "fcf_ttm": 11875.1,
+   "fcf_3y_avg": 11406.0,
+   "revenue_ttm": 122538.8,
+   "norm_fcf_margin": 0.1051,
+   "fcf_cagr_5y": 0.0885
+  },
+  {
+   "code": "032640",
+   "name": "LG유플러스",
+   "sector": "유틸통신",
+   "holdco": false,
+   "mktcap": 35741.6,
+   "net_debt": 11545.0,
+   "ev": 47286.5,
+   "fcf_ttm": 9898.1,
+   "fcf_3y_avg": 9920.9,
+   "revenue_ttm": 42142.2,
+   "norm_fcf_margin": 0.25,
+   "fcf_cagr_5y": 0.1461
+  },
+  {
+   "code": "352820",
+   "name": "하이브",
+   "sector": "엔터",
+   "holdco": false,
+   "mktcap": 89453.2,
+   "net_debt": 9318.9,
+   "ev": 98772.1,
+   "fcf_ttm": 3320.9,
+   "fcf_3y_avg": 3207.9,
+   "revenue_ttm": 50175.5,
+   "norm_fcf_margin": 0.0647,
+   "fcf_cagr_5y": 0.2369
+  },
+  {
+   "code": "035900",
+   "name": "JYP Ent.",
+   "sector": "엔터",
+   "holdco": false,
+   "mktcap": 18828.2,
+   "net_debt": 1204.1,
+   "ev": 20032.3,
+   "fcf_ttm": 1345.0,
+   "fcf_3y_avg": 1374.8,
+   "revenue_ttm": 16767.3,
+   "norm_fcf_margin": 0.0809,
+   "fcf_cagr_5y": 0.0783
+  },
+  {
+   "code": "041510",
+   "name": "에스엠",
+   "sector": "엔터",
+   "holdco": false,
+   "mktcap": 20529.8,
+   "net_debt": 174.9,
+   "ev": 20704.8,
+   "fcf_ttm": 1600.1,
+   "fcf_3y_avg": 1514.4,
+   "revenue_ttm": 13769.6,
+   "norm_fcf_margin": 0.1242,
+   "fcf_cagr_5y": 0.2244
+  },
+  {
+   "code": "122870",
+   "name": "와이지엔터테인먼트",
+   "sector": "엔터",
+   "holdco": false,
+   "mktcap": 10197.3,
+   "net_debt": 2049.7,
+   "ev": 12247.0,
+   "fcf_ttm": 631.9,
+   "fcf_3y_avg": 649.8,
+   "revenue_ttm": 13714.6,
+   "norm_fcf_margin": 0.053,
+   "fcf_cagr_5y": 0.1057
+  },
+  {
+   "code": "021240",
+   "name": "코웨이",
+   "sector": "유통소비",
+   "holdco": false,
+   "mktcap": 58765.5,
+   "net_debt": 9579.1,
+   "ev": 68344.7,
+   "fcf_ttm": 7778.8,
+   "fcf_3y_avg": 7619.0,
+   "revenue_ttm": 86014.1,
+   "norm_fcf_margin": 0.1124,
+   "fcf_cagr_5y": 0.179
+  },
+  {
+   "code": "139480",
+   "name": "이마트",
+   "sector": "유통소비",
+   "holdco": false,
+   "mktcap": 20021.8,
+   "net_debt": 2205.2,
+   "ev": 22226.9,
+   "fcf_ttm": -500.5,
+   "fcf_3y_avg": -291.8,
+   "revenue_ttm": 28127.8,
+   "norm_fcf_margin": 0.02,
+   "fcf_cagr_5y": null
+  },
+  {
+   "code": "282330",
+   "name": "BGF리테일",
+   "sector": "유통소비",
+   "holdco": false,
+   "mktcap": 17695.1,
+   "net_debt": -2016.7,
+   "ev": 15678.4,
+   "fcf_ttm": 1712.1,
+   "fcf_3y_avg": 1403.0,
+   "revenue_ttm": 14173.0,
+   "norm_fcf_margin": 0.0959,
+   "fcf_cagr_5y": 0.0242
+  },
+  {
+   "code": "007070",
+   "name": "GS리테일",
+   "sector": "유통소비",
+   "holdco": false,
+   "mktcap": 18883.4,
+   "net_debt": 4179.8,
+   "ev": 23063.1,
+   "fcf_ttm": 3852.9,
+   "fcf_3y_avg": 4197.7,
+   "revenue_ttm": 15988.8,
+   "norm_fcf_margin": 0.25,
+   "fcf_cagr_5y": -0.0846
+  },
+  {
+   "code": "008770",
+   "name": "호텔신라",
+   "sector": "유통소비",
+   "holdco": false,
+   "mktcap": 20605.0,
+   "net_debt": -1857.8,
+   "ev": 18747.2,
+   "fcf_ttm": 958.7,
+   "fcf_3y_avg": 1088.6,
+   "revenue_ttm": 27333.1,
+   "norm_fcf_margin": 0.0408,
+   "fcf_cagr_5y": 0.2678
+  },
+  {
+   "code": "000720",
+   "name": "현대건설",
+   "sector": "건설기계",
+   "holdco": false,
+   "mktcap": 42252.0,
+   "net_debt": 8564.6,
+   "ev": 50816.6,
+   "fcf_ttm": 7364.5,
+   "fcf_3y_avg": 7543.5,
+   "revenue_ttm": 27500.5,
+   "norm_fcf_margin": 0.25,
+   "fcf_cagr_5y": 0.0423
+  },
+  {
+   "code": "034020",
+   "name": "두산에너빌리티",
+   "sector": "건설기계",
+   "holdco": false,
+   "mktcap": 134868.8,
+   "net_debt": -9042.5,
+   "ev": 125826.3,
+   "fcf_ttm": 2294.0,
+   "fcf_3y_avg": 2629.4,
+   "revenue_ttm": 189744.7,
+   "norm_fcf_margin": 0.02,
+   "fcf_cagr_5y": -0.0373
+  },
+  {
+   "code": "241560",
+   "name": "두산밥캣",
+   "sector": "건설기계",
+   "holdco": false,
+   "mktcap": 44623.9,
+   "net_debt": 3307.7,
+   "ev": 47931.6,
+   "fcf_ttm": 8090.5,
+   "fcf_3y_avg": 6699.1,
+   "revenue_ttm": 41077.9,
+   "norm_fcf_margin": 0.1774,
+   "fcf_cagr_5y": 0.0618
+  },
+  {
+   "code": "267260",
+   "name": "HD현대일렉트릭",
+   "sector": "건설기계",
+   "holdco": false,
+   "mktcap": 125328.3,
+   "net_debt": -7461.6,
+   "ev": 117866.6,
+   "fcf_ttm": 3154.9,
+   "fcf_3y_avg": 2573.2,
+   "revenue_ttm": 94055.3,
+   "norm_fcf_margin": 0.03,
+   "fcf_cagr_5y": -0.0909
+  },
+  {
+   "code": "010120",
+   "name": "LS일렉트릭",
+   "sector": "건설기계",
+   "holdco": false,
+   "mktcap": 61556.0,
+   "net_debt": 5949.1,
+   "ev": 67505.1,
+   "fcf_ttm": 3070.4,
+   "fcf_3y_avg": 2718.1,
+   "revenue_ttm": 71719.3,
+   "norm_fcf_margin": 0.044,
+   "fcf_cagr_5y": -0.0244
+  },
+  {
+   "code": "298040",
+   "name": "효성중공업",
+   "sector": "건설기계",
+   "holdco": false,
+   "mktcap": 52553.0,
+   "net_debt": 12163.5,
+   "ev": 64716.5,
+   "fcf_ttm": 2655.6,
+   "fcf_3y_avg": 2465.3,
+   "revenue_ttm": 42365.5,
+   "norm_fcf_margin": 0.072,
+   "fcf_cagr_5y": 0.1136
+  },
+  {
+   "code": "003490",
+   "name": "대한항공",
+   "sector": "운송",
+   "holdco": false,
+   "mktcap": 89529.5,
+   "net_debt": 20978.0,
+   "ev": 110507.4,
+   "fcf_ttm": 13749.1,
+   "fcf_3y_avg": 13428.4,
+   "revenue_ttm": 98889.6,
+   "norm_fcf_margin": 0.1684,
+   "fcf_cagr_5y": 0.0224
+  },
+  {
+   "code": "011200",
+   "name": "HMM",
+   "sector": "운송",
+   "holdco": false,
+   "mktcap": 152348.4,
+   "net_debt": 15144.7,
+   "ev": 167493.1,
+   "fcf_ttm": 32334.8,
+   "fcf_3y_avg": 27055.9,
+   "revenue_ttm": 228645.2,
+   "norm_fcf_margin": 0.1364,
+   "fcf_cagr_5y": 0.0436
+  },
+  {
+   "code": "086280",
+   "name": "현대글로비스",
+   "sector": "운송",
+   "holdco": false,
+   "mktcap": 90325.2,
+   "net_debt": 1754.8,
+   "ev": 92080.0,
+   "fcf_ttm": 12551.0,
+   "fcf_3y_avg": 10149.8,
+   "revenue_ttm": 84711.4,
+   "norm_fcf_margin": 0.1226,
+   "fcf_cagr_5y": -0.0088
+  }
+ ]
+};
+
+/* ============================================================
+   상태
+   ============================================================ */
+let DATA = EMBEDDED;
+const WS = {              // 워크스페이스: 파일로 저장/복원 (브라우저 저장소 미사용)
+  tags: {},               // code -> 'L'|'S'|'W'
+  notes: {},              // code -> string
+  overrides: {},          // code -> {wacc?, anchor?, fcf0?, margin?}
+};
+const VIEW = {
+  sortKey: 'gap', sortAsc: true, q: '',
+  sig: new Set(), tags: new Set(), sectors: new Set(),
+};
+let ROWS = [];            // 계산 결과 캐시
+let currentCode = null;
+
+/* ============================================================
+   역DCF 솔버 (단조함수 이분법 — pipeline.py와 동일 로직)
+   ============================================================ */
+function calcEV(fcf0, g, wacc, tg, N, fade, midYear){
+  let pv = 0, f = fcf0;
+  for(let t=1; t<=N; t++){
+    const gt = fade ? g + (tg - g)*(t-1)/(N-1 || 1) : g;
+    f *= (1+gt);
+    pv += f / Math.pow(1+wacc, midYear ? t-0.5 : t);
+  }
+  const tv = f*(1+tg)/(wacc-tg);
+  return {ev: pv + tv/Math.pow(1+wacc, midYear ? N-0.5 : N), pvFcf: pv, fcfN: f, tv};
+}
+function solveG(targetEV, fcf0, wacc, tg, N, fade, midYear){
+  if(!(fcf0>0) || !(targetEV>0)) return {status:'fcf<=0'};
+  if(wacc<=tg) return {status:'wacc<=tg'};
+  let lo=-0.5, hi=1.0;
+  if(calcEV(fcf0,lo,wacc,tg,N,fade,midYear).ev > targetEV) return {status:'범위밖(저)'};
+  if(calcEV(fcf0,hi,wacc,tg,N,fade,midYear).ev < targetEV) return {status:'범위밖(고)'};
+  for(let i=0;i<70;i++){
+    const mid=(lo+hi)/2;
+    if(calcEV(fcf0,mid,wacc,tg,N,fade,midYear).ev > targetEV) hi=mid; else lo=mid;
+  }
+  const g=(lo+hi)/2, d=calcEV(fcf0,g,wacc,tg,N,fade,midYear);
+  return {status:'ok', g, tvShare:(d.ev-d.pvFcf)/d.ev, exitMult:d.tv/d.fcfN, fcfN:d.fcfN};
+}
+
+/* ============================================================
+   가정 읽기 & 전체 재계산
+   ============================================================ */
+const $ = id => document.getElementById(id);
+function assumptions(){
+  return {
+    waccMode: $('waccMode').value,
+    waccShift: parseFloat($('waccShift').value)/1e4,
+    waccGlobal: parseFloat($('waccGlobal').value)/100,
+    tg: parseFloat($('tg').value)/100,
+    N: parseInt($('nYears').value),
+    basis: $('fcfBasis').value,
+    fade: $('fade').checked, midYear: $('midYear').checked,
+    thr: parseFloat($('thr').value)/100,
+  };
+}
+function waccFor(nm, A){
+  const ov = WS.overrides[nm.code];
+  if(ov && ov.wacc != null) return ov.wacc;
+  if(A.waccMode==='global') return A.waccGlobal;
+  return (DATA.sector_wacc[nm.sector] ?? 0.095) + A.waccShift;
+}
+function recompute(){
+  const t0 = performance.now();
+  const A = assumptions();
+  ROWS = DATA.names.map(nm=>{
+    const ov = WS.overrides[nm.code] || {};
+    const wacc = waccFor(nm, A);
+    let fcf0 = ov.fcf0 != null ? ov.fcf0 : (A.basis==='ttm' ? nm.fcf_ttm : nm.fcf_3y_avg);
+    let basisUsed = ov.fcf0 != null ? '수기' : (A.basis==='ttm' ? 'TTM' : '3Y평균');
+    let marginMode = false;
+    // 음수 FCF -> 매출×정상화마진으로 자동 전환 (implied REVENUE growth)
+    if(!(fcf0>0) && nm.revenue_ttm>0){
+      const m = ov.margin != null ? ov.margin : nm.norm_fcf_margin;
+      if(m>0){ fcf0 = nm.revenue_ttm*m; marginMode = true; basisUsed='마진기준'; }
+    }
+    const sol = solveG(nm.ev, fcf0, wacc, A.tg, A.N, A.fade, A.midYear);
+    const anchorRaw = ov.anchor != null ? ov.anchor : nm.fcf_cagr_5y;
+    const anchor = anchorRaw != null ? anchorRaw : null;
+    let gap = null, signal = 'excluded';
+    if(nm.holdco){ signal='excluded'; }
+    else if(sol.status==='ok'){
+      gap = anchor != null ? sol.g - anchor : null;
+      if(gap==null) signal='neutral';
+      else if(gap <= -A.thr) signal='long';
+      else if(gap >=  A.thr) signal='short';
+      else signal='neutral';
+    }
+    return {nm, wacc, fcf0, basisUsed, marginMode, sol, anchor,
+            anchorIsOv: ov.anchor!=null, gap, signal,
+            evfcf: (fcf0>0? nm.ev/fcf0 : null)};
+  });
+  $('solveMs').textContent = (performance.now()-t0).toFixed(1);
+  render();
+}
+
+/* ============================================================
+   렌더
+   ============================================================ */
+const fmtKRW = x => x==null ? '–' : (Math.abs(x)>=1e4 ? (x/1e4).toFixed(1)+'조' : Math.round(x).toLocaleString()+'억');
+const fmtPct = (x,d=1) => x==null ? '–' : (x*100).toFixed(d)+'%';
+const fmtX = x => x==null ? '–' : x.toFixed(1)+'×';
+
+const COLS = [
+  {k:'tag',   t:'태그', l:1},
+  {k:'name',  t:'종목', l:1},
+  {k:'sector',t:'섹터', l:1},
+  {k:'ev',    t:'EV'},
+  {k:'fcf0',  t:'FCF 기준값'},
+  {k:'evfcf', t:'EV/FCF'},
+  {k:'g',     t:'Implied g'},
+  {k:'anchor',t:'앵커 (5Y CAGR)'},
+  {k:'gap',   t:'갭 = implied − 앵커'},
+  {k:'tv',    t:'TV%'},
+  {k:'exit',  t:'Exit×'},
+  {k:'sig',   t:'신호'},
+];
+function sortVal(r,k){
+  switch(k){
+    case 'tag': return WS.tags[r.nm.code]||'zz';
+    case 'name': return r.nm.name; case 'sector': return r.nm.sector;
+    case 'ev': return r.nm.ev; case 'fcf0': return r.fcf0??-1e18;
+    case 'evfcf': return r.evfcf??1e18;
+    case 'g': return r.sol.g??1e18; case 'anchor': return r.anchor??1e18;
+    case 'gap': return r.gap??1e18; case 'tv': return r.sol.tvShare??1e18;
+    case 'exit': return r.sol.exitMult??1e18; case 'sig': return r.signal;
+  }
+}
+function filtered(){
+  return ROWS.filter(r=>{
+    if(VIEW.q && !(r.nm.name.includes(VIEW.q) || r.nm.code.includes(VIEW.q))) return false;
+    if(VIEW.sectors.size && !VIEW.sectors.has(r.nm.sector)) return false;
+    if(VIEW.sig.size && !VIEW.sig.has(r.signal)) return false;
+    if(VIEW.tags.size && !VIEW.tags.has(WS.tags[r.nm.code]||'')) return false;
+    return true;
+  }).sort((a,b)=>{
+    const va=sortVal(a,VIEW.sortKey), vb=sortVal(b,VIEW.sortKey);
+    const c = typeof va==='string' ? va.localeCompare(vb,'ko') : va-vb;
+    return VIEW.sortAsc ? c : -c;
+  });
+}
+function render(){
+  // 헤더
+  $('thr-row').innerHTML = COLS.map(c=>
+    `<th class="${c.l?'l':''}" data-k="${c.k}">${c.t}${VIEW.sortKey===c.k?`<span class="arr">${VIEW.sortAsc?'▲':'▼'}</span>`:''}</th>`
+  ).join('');
+  $('thr-row').querySelectorAll('th').forEach(th=>th.onclick=()=>{
+    const k=th.dataset.k;
+    if(VIEW.sortKey===k) VIEW.sortAsc=!VIEW.sortAsc; else {VIEW.sortKey=k; VIEW.sortAsc=true;}
+    render();
+  });
+
+  const rows = filtered();
+  const A = assumptions();
+  const GAP_CAP = 0.15; // 바 스케일 상한 ±15%p
+
+  $('tbody').innerHTML = rows.length ? rows.map(r=>{
+    const tag = WS.tags[r.nm.code];
+    const g = r.sol.status==='ok' ? r.sol.g : null;
+    const gapW = r.gap==null?0:Math.min(Math.abs(r.gap)/GAP_CAP,1)*50;
+    const flags = [
+      r.nm.holdco?'<span class="flag warn">지주</span>':'',
+      r.marginMode?'<span class="flag">마진기준</span>':'',
+      (r.sol.tvShare>0.8)?'<span class="flag warn">TV과다</span>':'',
+      (r.sol.status!=='ok'&&!r.nm.holdco)?`<span class="flag warn">${r.sol.status}</span>`:'',
+      r.anchorIsOv?'<span class="flag">앵커수정</span>':'',
+    ].join('');
+    const sigTxt = {long:'롱 후보',short:'숏 후보',neutral:'중립',excluded:'제외'}[r.signal];
+    return `<tr data-code="${r.nm.code}" class="${r.signal==='excluded'?'excluded':''}">
+      <td class="l"><span class="tag ${tag||'none'}">${tag||'·'}</span></td>
+      <td class="l"><span class="nm">${r.nm.name}</span><span class="cd">${r.nm.code}</span>${flags}</td>
+      <td class="l sec">${r.nm.sector}</td>
+      <td class="num">${fmtKRW(r.nm.ev)}</td>
+      <td class="num">${fmtKRW(r.fcf0)}<span style="color:var(--muted);font-size:.7rem"> ${r.basisUsed}</span></td>
+      <td class="num">${fmtX(r.evfcf)}</td>
+      <td class="num">${g==null?'–':fmtPct(g)}</td>
+      <td class="num">${r.anchor==null?'–':fmtPct(r.anchor)}</td>
+      <td><div class="gapcell">
+        <div class="gapbar">${r.gap==null?'':`<div class="fill ${r.gap<0?'long':'short'}" style="width:${gapW}%"></div>`}</div>
+        <span class="gapv ${r.gap==null?'':(r.gap<0?'pos':'neg')}">${r.gap==null?'–':(r.gap>0?'+':'')+fmtPct(r.gap)}</span>
+      </div></td>
+      <td class="num">${r.sol.tvShare==null?'–':Math.round(r.sol.tvShare*100)+'%'}</td>
+      <td class="num">${fmtX(r.sol.exitMult)}</td>
+      <td><span class="sig ${r.signal}">${sigTxt}</span></td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="12"><div class="empty">조건에 맞는 종목이 없습니다. 필터를 해제해 보세요.</div></td></tr>`;
+
+  document.querySelectorAll('#tbody tr[data-code]').forEach(tr=>tr.onclick=()=>openDrawer(tr.dataset.code));
+
+  // 요약
+  const ok = ROWS.filter(r=>r.sol.status==='ok');
+  const gaps = ROWS.filter(r=>r.gap!=null).map(r=>r.gap).sort((a,b)=>a-b);
+  const med = a => a.length? a[Math.floor(a.length/2)] : null;
+  const gs = ok.map(r=>r.sol.g).sort((a,b)=>a-b);
+  const nL = ROWS.filter(r=>r.signal==='long').length;
+  const nS = ROWS.filter(r=>r.signal==='short').length;
+  const tL = Object.values(WS.tags).filter(t=>t==='L').length;
+  const tS = Object.values(WS.tags).filter(t=>t==='S').length;
+  $('summary').innerHTML = `
+    <div class="stat"><div class="k">유니버스</div><div class="v">${ROWS.length}</div></div>
+    <div class="stat"><div class="k">해 수렴</div><div class="v">${ok.length}</div></div>
+    <div class="stat"><div class="k">롱 후보</div><div class="v red">${nL}</div></div>
+    <div class="stat"><div class="k">숏 후보</div><div class="v blue">${nS}</div></div>
+    <div class="stat"><div class="k">중위 implied g</div><div class="v">${fmtPct(med(gs))}</div></div>
+    <div class="stat"><div class="k">중위 갭</div><div class="v">${med(gaps)==null?'–':(med(gaps)>0?'+':'')+fmtPct(med(gaps))}</div></div>
+    <div class="stat"><div class="k">태깅 L / S</div><div class="v">${tL} / ${tS}</div></div>`;
+}
+
+/* ============================================================
+   드로어
+   ============================================================ */
+function openDrawer(code){
+  currentCode = code;
+  const r = ROWS.find(x=>x.nm.code===code); if(!r) return;
+  const nm=r.nm, A=assumptions();
+  $('drName').textContent = nm.name;
+  $('drSub').textContent = `${nm.code} · ${nm.sector} · EV ${fmtKRW(nm.ev)} (시총 ${fmtKRW(nm.mktcap)} + 순차입 ${fmtKRW(nm.net_debt)})`;
+
+  const ov = WS.overrides[code]||{};
+  const g = r.sol.status==='ok'?r.sol.g:null;
+  const reinvest = g!=null ? g/0.15 : null;
+
+  // 민감도 히트맵: WACC ±1.0%p × g∞ ±0.5%p
+  const ws=[-.01,-.005,0,.005,.01].map(d=>r.wacc+d);
+  const ts=[-.005,-.0025,0,.0025,.005].map(d=>A.tg+d);
+  let heat = `<table class="heat"><tr><th>WACC\\g∞</th>${ts.map(t=>`<th>${(t*100).toFixed(2)}%</th>`).join('')}</tr>`;
+  for(const w of ws){
+    heat += `<tr><th>${(w*100).toFixed(1)}%</th>`;
+    for(const t of ts){
+      const s = solveG(nm.ev, r.fcf0, w, t, A.N, A.fade, A.midYear);
+      let bg='#fff', txt='–';
+      if(s.status==='ok'){
+        txt=fmtPct(s.g);
+        if(r.anchor!=null){
+          const gp=s.g-r.anchor, a=Math.min(Math.abs(gp)/0.12,1)*0.75;
+          bg = gp<0?`rgba(214,64,60,${a})`:`rgba(37,99,201,${a})`;
+        }
+      }
+      const isBase = Math.abs(w-r.wacc)<1e-9 && Math.abs(t-A.tg)<1e-9;
+      heat += `<td class="${isBase?'base':''}" style="background:${bg}">${txt}</td>`;
+    }
+    heat += '</tr>';
+  }
+  heat += '</table>';
+
+  const tag = WS.tags[code]||'';
+  $('drBody').innerHTML = `
+    ${nm.holdco?'<div class="dr-warn">지주사 — 연결 FCF 역DCF 부적합. 상장 자회사 지분가치를 반영하는 NAV 기반 sum-of-parts 역산 권장. 신호 산출에서 제외됨.</div>':''}
+    ${r.marginMode?'<div class="dr-warn">FCF 음수 — 매출 × 정상화 FCF마진 기준으로 전환됨. implied g는 <b>매출 성장률</b>로 해석.</div>':''}
+
+    <div class="dr-sec">
+      <h3>포지션 태그</h3>
+      <div class="tagbtns">
+        <button data-t="L" class="${tag==='L'?'on-L':''}">롱 L</button>
+        <button data-t="S" class="${tag==='S'?'on-S':''}">숏 S</button>
+        <button data-t="W" class="${tag==='W'?'on-W':''}">관찰 W</button>
+        <button data-t="">해제</button>
+      </div>
+    </div>
+
+    <div class="dr-sec">
+      <h3>현재 가정 하 결과</h3>
+      <div class="kv">
+        <div class="cell"><div class="k">Implied g</div><div class="v">${g==null?r.sol.status:fmtPct(g,2)}</div></div>
+        <div class="cell"><div class="k">앵커 대비 갭</div><div class="v" style="color:${r.gap==null?'inherit':(r.gap<0?'var(--red)':'var(--blue)')}">${r.gap==null?'–':(r.gap>0?'+':'')+fmtPct(r.gap,2)}</div></div>
+        <div class="cell"><div class="k">적용 WACC</div><div class="v">${fmtPct(r.wacc)}</div></div>
+        <div class="cell"><div class="k">Exit EV/FCF</div><div class="v">${fmtX(r.sol.exitMult)}</div></div>
+        <div class="cell"><div class="k">필요 재투자율 <span style="font-weight:400">(ROIC 15%)</span></div><div class="v">${reinvest==null?'–':fmtPct(reinvest,0)}</div></div>
+        <div class="cell"><div class="k">FCF 기준 (${r.basisUsed})</div><div class="v">${fmtKRW(r.fcf0)}</div></div>
+      </div>
+      ${r.sol.status==='ok'?`
+      <div class="pvbar"><div class="a" style="width:${(1-r.sol.tvShare)*100}%"></div><div class="b" style="width:${r.sol.tvShare*100}%"></div></div>
+      <div class="pvlegend">명시 구간 PV ${Math.round((1-r.sol.tvShare)*100)}% · Terminal Value ${Math.round(r.sol.tvShare*100)}% ${r.sol.tvShare>0.8?'— <b>TV 지배적, implied g는 터미널 가정의 함수에 가까움</b>':''}</div>`:''}
+    </div>
+
+    <div class="dr-sec">
+      <h3>민감도 — implied g (색: 앵커 대비 갭, 빨강=저평가 / 파랑=고평가)</h3>
+      ${heat}
+    </div>
+
+    <div class="dr-sec">
+      <h3>개별 오버라이드 (비우면 기본값)</h3>
+      <div class="ov-grid">
+        <div class="ctl"><label>WACC %</label><input type="number" step="0.1" id="ovWacc" value="${ov.wacc!=null?(ov.wacc*100).toFixed(1):''}" placeholder="${(waccFor(nm,A)*100).toFixed(1)}"></div>
+        <div class="ctl"><label>앵커 성장률 % (내 전망치)</label><input type="number" step="0.5" id="ovAnchor" value="${ov.anchor!=null?(ov.anchor*100).toFixed(1):''}" placeholder="${nm.fcf_cagr_5y!=null?(nm.fcf_cagr_5y*100).toFixed(1):'없음'}"></div>
+        <div class="ctl"><label>FCF 기준값 (억)</label><input type="number" id="ovFcf" value="${ov.fcf0!=null?ov.fcf0:''}" placeholder="${r.fcf0!=null?Math.round(r.fcf0):''}"></div>
+        <div class="ctl"><label>정상화 FCF마진 % (음수FCF용)</label><input type="number" step="0.5" id="ovMargin" value="${ov.margin!=null?(ov.margin*100).toFixed(1):''}" placeholder="${nm.norm_fcf_margin!=null?(nm.norm_fcf_margin*100).toFixed(1):''}"></div>
+      </div>
+      <div style="margin-top:.6rem;display:flex;gap:.5rem">
+        <button class="chip" id="ovApply" style="font-weight:600">적용</button>
+        <button class="chip" id="ovClear">오버라이드 초기화</button>
+      </div>
+    </div>
+
+    <div class="dr-sec">
+      <h3>메모 (워크스페이스에 저장)</h3>
+      <textarea class="note" id="drNote" placeholder="투자 논지, 촉매, 리스크...">${WS.notes[code]||''}</textarea>
+    </div>`;
+
+  $('drBody').querySelectorAll('.tagbtns button').forEach(b=>b.onclick=()=>{
+    const t=b.dataset.t;
+    if(t) WS.tags[code]=t; else delete WS.tags[code];
+    recompute(); openDrawer(code);
+  });
+  $('ovApply').onclick=()=>{
+    const o={};
+    const w=parseFloat($('ovWacc').value); if(!isNaN(w)) o.wacc=w/100;
+    const a=parseFloat($('ovAnchor').value); if(!isNaN(a)) o.anchor=a/100;
+    const f=parseFloat($('ovFcf').value); if(!isNaN(f)) o.fcf0=f;
+    const m=parseFloat($('ovMargin').value); if(!isNaN(m)) o.margin=m/100;
+    if(Object.keys(o).length) WS.overrides[code]=o; else delete WS.overrides[code];
+    recompute(); openDrawer(code);
+  };
+  $('ovClear').onclick=()=>{ delete WS.overrides[code]; recompute(); openDrawer(code); };
+  $('drNote').onchange=e=>{ 
+    if(e.target.value.trim()) WS.notes[code]=e.target.value; else delete WS.notes[code];
+  };
+
+  $('drawer').classList.add('open'); $('overlay').classList.add('open');
+}
+function closeDrawer(){ $('drawer').classList.remove('open'); $('overlay').classList.remove('open'); currentCode=null; }
+$('drClose').onclick=closeDrawer; $('overlay').onclick=closeDrawer;
+
+/* ============================================================
+   필터 UI
+   ============================================================ */
+function buildFilters(){
+  const secs=[...new Set(DATA.names.map(n=>n.sector))].sort((a,b)=>a.localeCompare(b,'ko'));
+  $('secChips').innerHTML = secs.map(s=>`<button class="chip" data-sec="${s}">${s}</button>`).join('');
+  $('secChips').querySelectorAll('.chip').forEach(c=>c.onclick=()=>{
+    const s=c.dataset.sec;
+    VIEW.sectors.has(s)?VIEW.sectors.delete(s):VIEW.sectors.add(s);
+    c.classList.toggle('on'); render();
+  });
+}
+$('sigChips').querySelectorAll('.chip').forEach(c=>c.onclick=()=>{
+  const s=c.dataset.sig;
+  VIEW.sig.has(s)?VIEW.sig.delete(s):VIEW.sig.add(s);
+  c.classList.toggle('on'); render();
+});
+$('tagChips').querySelectorAll('.chip').forEach(c=>c.onclick=()=>{
+  const t=c.dataset.tag;
+  VIEW.tags.has(t)?VIEW.tags.delete(t):VIEW.tags.add(t);
+  c.classList.toggle('on'); render();
+});
+$('q').oninput=e=>{VIEW.q=e.target.value.trim(); render();};
+document.addEventListener('keydown',e=>{
+  if(e.key==='/' && document.activeElement.tagName!=='INPUT' && document.activeElement.tagName!=='TEXTAREA'){
+    e.preventDefault(); $('q').focus();
+  }
+  if(e.key==='Escape') closeDrawer();
+});
+
+/* ============================================================
+   콕핏 이벤트 & 프리셋
+   ============================================================ */
+['tg','nYears','fcfBasis','fade','midYear','thr','waccGlobal'].forEach(id=>$(id).onchange=recompute);
+$('waccShift').oninput=()=>{
+  const v=parseInt($('waccShift').value);
+  $('waccShiftVal').textContent=(v>=0?'+':'')+v+'bp';
+  recompute();
+};
+$('waccMode').onchange=()=>{
+  const g=$('waccMode').value==='global';
+  $('waccShift').style.display=g?'none':'';
+  $('waccShiftVal').style.display=g?'none':'';
+  $('waccGlobal').style.display=g?'':'none';
+  $('waccGlobalPct').style.display=g?'':'none';
+  recompute();
+};
+const PRESETS={
+  base:{shift:0, tg:1.0}, bear:{shift:100, tg:0.5}, bull:{shift:-100, tg:1.5}
+};
+document.querySelectorAll('.presets button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.presets button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  const p=PRESETS[b.dataset.preset];
+  $('waccShift').value=p.shift;
+  $('waccShiftVal').textContent=(p.shift>=0?'+':'')+p.shift+'bp';
+  $('tg').value=p.tg;
+  recompute();
+});
+
+/* ============================================================
+   입출력
+   ============================================================ */
+$('btnLoadData').onclick=()=>$('fileData').click();
+$('fileData').onchange=e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>{ try{
+    const d=JSON.parse(rd.result);
+    if(!d.names||!d.sector_wacc) throw new Error('스키마 불일치 — pipeline.py 출력 JSON이 필요합니다.');
+    DATA=d;
+    $('srcBadge').textContent = d.meta?.source==='live' ? '실데이터 · '+(d.meta.generated||'') : 'DEMO 데이터';
+    $('srcBadge').className = 'badge '+(d.meta?.source==='live'?'live':'demo');
+    buildFilters(); recompute();
+  }catch(err){ alert('불러오기 실패: '+err.message); } };
+  rd.readAsText(f); e.target.value='';
+};
+$('btnSaveWs').onclick=()=>{
+  const blob=new Blob([JSON.stringify({saved:new Date().toISOString(), assumptions:assumptions(), ...WS},null,1)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='workspace_'+new Date().toISOString().slice(0,10)+'.json';
+  a.click();
+};
+$('btnLoadWs').onclick=()=>$('fileWs').click();
+$('fileWs').onchange=e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>{ try{
+    const w=JSON.parse(rd.result);
+    Object.assign(WS.tags, w.tags||{}); Object.assign(WS.notes, w.notes||{}); Object.assign(WS.overrides, w.overrides||{});
+    recompute();
+  }catch(err){ alert('불러오기 실패: '+err.message); } };
+  rd.readAsText(f); e.target.value='';
+};
+$('btnCsv').onclick=()=>{
+  const rows=filtered();
+  const head='code,name,sector,tag,ev_억,fcf_기준_억,basis,ev_fcf,implied_g,anchor_g,gap,tv_share,exit_mult,signal,holdco,note';
+  const esc=s=>'"'+String(s??'').replace(/"/g,'""')+'"';
+  const body=rows.map(r=>[
+    r.nm.code, esc(r.nm.name), r.nm.sector, WS.tags[r.nm.code]||'',
+    r.nm.ev, r.fcf0!=null?Math.round(r.fcf0):'', r.basisUsed,
+    r.evfcf!=null?r.evfcf.toFixed(2):'',
+    r.sol.g!=null?(r.sol.g*100).toFixed(2):'', r.anchor!=null?(r.anchor*100).toFixed(2):'',
+    r.gap!=null?(r.gap*100).toFixed(2):'',
+    r.sol.tvShare!=null?(r.sol.tvShare*100).toFixed(1):'',
+    r.sol.exitMult!=null?r.sol.exitMult.toFixed(1):'',
+    r.signal, r.nm.holdco?1:0, esc(WS.notes[r.nm.code]||'')
+  ].join(',')).join('\n');
+  const blob=new Blob(['\uFEFF'+head+'\n'+body],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='screener_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+};
+
+/* ============================================================
+   부팅: universe.json 자동 로드 시도 → 실패 시 EMBEDDED 폴백
+   (GitHub Pages 등 HTTP 환경에선 최신 데이터, file:// 오프라인에선 EMBEDDED)
+   ============================================================ */
+function applyData(d){
+  DATA = d;
+  const live = d.meta?.source === 'live';
+  $('srcBadge').textContent = live ? '실데이터 · ' + (d.meta.generated || '') : 'DEMO 데이터';
+  $('srcBadge').className = 'badge ' + (live ? 'live' : 'demo');
+  buildFilters(); recompute();
+}
+applyData(EMBEDDED);                          // 즉시 렌더(폴백 겸 초기 표시)
+fetch('universe.json', {cache: 'no-store'})
+  .then(r => r.ok ? r.json() : Promise.reject(new Error('universe.json 없음')))
+  .then(d => { if (d.names && d.sector_wacc) applyData(d); })
+  .catch(() => {});                           // 파일 없음/CORS → EMBEDDED 유지
+</script>
+</body>
+</html>

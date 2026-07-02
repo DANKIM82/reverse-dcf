@@ -1,0 +1,7 @@
+# 항상 필요 (역DCF 계산 / demo 생성)
+numpy
+
+# 실데이터 수집(--fetch) 시에만 필요
+pandas
+pykrx
+opendart-reader
