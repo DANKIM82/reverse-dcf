@@ -7,7 +7,7 @@
       python pipeline.py --demo -o universe.json
 
   실데이터 수집 (로컬 실행, pykrx + OpenDART 필요):
-      pip install pykrx opendart-reader pandas
+      pip install -r requirements.txt        # pykrx, OpenDartReader, pandas
       export DART_API_KEY=발급키                       # opendart.fss.or.kr 무료 발급
       python pipeline.py --export-universe universe.csv  # 최초 1회: 종목목록 생성
       python pipeline.py --fetch --universe universe.csv -o universe.json
