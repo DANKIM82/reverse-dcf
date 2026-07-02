@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-:root{
+:root{h
   --bg:#F4F5F7; --panel:#FFFFFF; --ink:#1A1D23; --muted:#757D8A;
   --line:#E2E5EA; --line-soft:#EDEFF3; --navy:#22304A;
   --red:#D6403C; --red-soft:#FBEAE9; --blue:#2563C9; --blue-soft:#E8EFFB;
@@ -1936,10 +1936,10 @@ function applyData(d){
   buildFilters(); recompute();
 }
 applyData(EMBEDDED);                          // 즉시 렌더(폴백 겸 초기 표시)
-fetch('universe.json', {cache: 'no-store'})
+fetch('https://raw.githubusercontent.com/DANKIM82/reverse-dcf/main/universe.json', {cache: 'no-store'})
   .then(r => r.ok ? r.json() : Promise.reject(new Error('universe.json 없음')))
-  .then(d => { if (d.names && d.sector_wacc) applyData(d); })
-  .catch(() => {});                           // 파일 없음/CORS → EMBEDDED 유지
+  .then(d => { if (d.names && d.names.length > 0 && d.sector_wacc) applyData(d); })
+  .catch(() => {}); // 파일 없음/CORS/빈 names → EMBEDDED 유지
 </script>
 </body>
 </html>
