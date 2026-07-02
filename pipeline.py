@@ -42,7 +42,7 @@ import json
 import os
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import numpy as np
 
@@ -89,12 +89,37 @@ def solve_implied_growth(ev, fcf0, wacc, tg, n=5, lo=-0.5, hi=1.0):
     return 0.5 * (lo + hi), "ok"
 
 # ======================================================================
-# 실데이터 수집 (로컬 전용 스켈레톤)
+# pykrx 시총 조회 - 최근 영업일 탐색 (robust)
+# ======================================================================
+def _get_mktcap_robust(stock, code):
+    """
+    오늘 기준으로 최대 10 영업일 이전까지 역순으로 탐색하여
+    시가총액을 가져옴. GitHub Actions(UTC) 환경 + 장중/휴장 대응.
+    """
+    # KST 기준 오늘 (UTC+9)
+    kst_today = datetime.utcnow() + timedelta(hours=9)
+    
+    for days_back in range(0, 14):
+        target = kst_today - timedelta(days=days_back)
+        # 주말 건너뜀
+        if target.weekday() >= 5:
+            continue
+        date_str = target.strftime("%Y%m%d")
+        try:
+            df = stock.get_market_cap(date_str, date_str, code)
+            if df is not None and not df.empty and len(df) > 0:
+                val = float(df["시가총액"].iloc[-1])
+                if val > 0:
+                    return val / 1e8, date_str
+        except Exception:
+            pass
+    return None, None
+
+# ======================================================================
+# 실데이터 수집
 # ======================================================================
 def _import_opendart():
     """opendartreader 모듈을 임포트. 패키지명 대소문자 변형 모두 시도."""
-    # PyPI 패키지명: opendartreader (소문자)
-    # 설치 후 임포트명이 환경마다 다를 수 있으므로 순서대로 시도
     for mod_name in ("opendartreader", "OpenDartReader", "open_dart_reader"):
         try:
             import importlib
@@ -118,28 +143,25 @@ def fetch_live(universe_csv):
     api_key = os.environ.get("DART_API_KEY")
     if not api_key:
         sys.exit("DART_API_KEY 환경변수가 필요합니다.")
-    # 구판은 모듈 자체가 호출가능(sys.modules 치환), 신판은 클래스 속성일 수 있음
     _Client = _odr if callable(_odr) else _odr.OpenDartReader
     dart = _Client(api_key)
 
     uni = pd.read_csv(universe_csv, dtype={"code": str}, encoding="utf-8-sig")
-    today = datetime.today().strftime("%Y%m%d")
     names = []
 
     for _, row in uni.iterrows():
         code = row["code"].zfill(6)
         try:
-            # ---- 시가총액 (억원) ----
-            cap_df = stock.get_market_cap(today, today, code)
-            if cap_df.empty:  # 휴장일 대비 최근 영업일 탐색
-                cap_df = stock.get_market_cap(
-                    stock.get_nearest_business_day_in_a_week(today), today, code)
-            mktcap = float(cap_df["시가총액"].iloc[-1]) / 1e8
+            # ---- 시가총액 (억원) - robust 날짜 탐색 ----
+            mktcap, used_date = _get_mktcap_robust(stock, code)
+            if mktcap is None:
+                print(f"  {code} {row['name']} 실패: 시총 조회 불가 (최근 14일)")
+                continue
+            print(f"  {code} {row['name']} 시총기준일={used_date}")
 
             # ---- DART 연간 재무 5개년 + TTM 근사 ----
             fin = collect_dart_financials(dart, code)
 
-            # 금융/지주는 차입금 성격이 사업(예수금)·연결구조상 특수 -> EV≈시총 취급
             sector = row["sector"]
             net_debt = 0.0 if sector in ("금융", "지주") else fin["net_debt"]
 
@@ -155,21 +177,17 @@ def fetch_live(universe_csv):
                 "norm_fcf_margin": fin["norm_fcf_margin"],
                 "fcf_cagr_5y": fin["fcf_cagr_5y"],
             })
-            print(f"  {code} {row['name']} ok")
-            time.sleep(0.15)  # DART rate limit
+            time.sleep(0.3)  # KRX + DART rate limit
         except Exception as e:
             print(f"  {code} {row['name']} 실패: {e}")
     return names
 
 def _match_amount(df, keywords, sj_div=None, fs_div="CFS"):
-    """계정명 키워드 매칭으로 당기 금액 추출 (억원). 실패 시 None.
-
-    fs_div: 연결(CFS) 우선. 연결 제표가 없으면 별도(OFS)로 폴백.
-    """
+    """계정명 키워드 매칭으로 당기 금액 추출 (억원). 실패 시 None."""
     d = df
     if fs_div is not None and "fs_div" in d.columns:
         cfs = d[d["fs_div"] == fs_div]
-        d = cfs if not cfs.empty else d  # 연결 없는 소형주는 별도재무 사용
+        d = cfs if not cfs.empty else d
     if sj_div is not None:
         d = d[d["sj_div"] == sj_div]
     for kw in keywords:
@@ -190,7 +208,7 @@ def collect_dart_financials(dart, code, years=6):
 
     for y in range(this_year - years, this_year):
         try:
-            df = dart.finstate_all(code, y, reprt_code="11011")  # 사업보고서
+            df = dart.finstate_all(code, y, reprt_code="11011")
             if df is None or df.empty:
                 continue
             cfo = _match_amount(df, ["영업활동현금흐름", "영업활동으로인한현금흐름"], "CF")
@@ -202,7 +220,7 @@ def collect_dart_financials(dart, code, years=6):
                 fcf_series.append((y, cfo - abs(capex_t) - abs(capex_i)))
             if rev is not None:
                 rev_series.append((y, rev))
-            if y == this_year - 1:  # 최근 사업연도 순차입금
+            if y == this_year - 1:
                 borrow_s = _match_amount(df, ["단기차입금"], "BS") or 0.0
                 borrow_l = _match_amount(df, ["장기차입금", "사채"], "BS") or 0.0
                 cash     = _match_amount(df, ["현금및현금성자산"], "BS") or 0.0
@@ -212,11 +230,10 @@ def collect_dart_financials(dart, code, years=6):
             continue
 
     fcf_vals = [v for _, v in fcf_series]
-    fcf_ttm  = fcf_vals[-1] if fcf_vals else None  # 최근 연간을 TTM 근사
+    fcf_ttm  = fcf_vals[-1] if fcf_vals else None
     fcf_3y   = float(np.mean(fcf_vals[-3:])) if len(fcf_vals) >= 3 else fcf_ttm
     rev_ttm  = rev_series[-1][1] if rev_series else None
 
-    # 5Y FCF CAGR: 양끝이 양수일 때만 정의
     cagr = None
     if len(fcf_vals) >= 5 and fcf_vals[0] > 0 and fcf_vals[-1] > 0:
         cagr = (fcf_vals[-1] / fcf_vals[0]) ** (1 / (len(fcf_vals) - 1)) - 1
@@ -238,7 +255,6 @@ def collect_dart_financials(dart, code, years=6):
 # 데모 유니버스 (실제 종목명, 수치는 규모감만 맞춘 가상값)
 # ======================================================================
 DEMO_UNIVERSE = [
-    # (code, name, sector, holdco, mktcap조원 스케일 힌트, ev/fcf 힌트)
     ("005930", "삼성전자",   "반도체",   0, 400, 18), ("000660", "SK하이닉스",  "반도체",   0, 190, 14),
     ("042700", "한미반도체",  "반도체",   0,  12, 38), ("058470", "리노공업",    "반도체",   0,   4, 26),
     ("403870", "HPSP",      "반도체",   0,   3, 30), ("240810", "원익IPS",     "반도체",   0,   2, 22),
@@ -296,21 +312,20 @@ def export_universe_csv(path):
         w.writerow(["code", "name", "sector", "holdco"])
         for code, name, sector, holdco, *_ in DEMO_UNIVERSE:
             w.writerow([code, name, sector, holdco])
-    print(f"{path} 저장: {len(DEMO_UNIVERSE)}종목 "
-          f"(이제 python pipeline.py --fetch --universe {path} 로 실데이터 수집)")
+    print(f"{path} 저장: {len(DEMO_UNIVERSE)}종목")
 
 def gen_demo(seed=42):
     rng = np.random.default_rng(seed)
     names = []
     for code, name, sector, holdco, cap_hint, evfcf_hint in DEMO_UNIVERSE:
-        mktcap = cap_hint * 1e4 * rng.uniform(0.85, 1.15)  # 조원 -> 억원
+        mktcap = cap_hint * 1e4 * rng.uniform(0.85, 1.15)
         nd_ratio = rng.uniform(-0.15, 0.35)
         if sector == "금융":
-            nd_ratio = 0.0  # 금융은 EV≈시총 취급(데모)
+            nd_ratio = 0.0
         net_debt = mktcap * nd_ratio
         ev = mktcap + net_debt
 
-        if evfcf_hint < 0:  # 음수 FCF 케이스
+        if evfcf_hint < 0:
             fcf_ttm = -mktcap * rng.uniform(0.005, 0.03)
             fcf_3y  = fcf_ttm * rng.uniform(0.3, 1.2)
             cagr    = None
@@ -362,7 +377,6 @@ def main():
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=1)
 
-    # 요약 출력 + 분포 검증
     ok = cheap = rich = neg = 0
     for nm in names:
         g, st = solve_implied_growth(nm["ev"], nm["fcf_ttm"],
